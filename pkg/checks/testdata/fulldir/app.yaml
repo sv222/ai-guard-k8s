@@ -1,0 +1,16 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ollama
+  namespace: llm
+  labels: { app: ollama }
+spec:
+  selector: { matchLabels: { app: ollama } }
+  template:
+    metadata: { labels: { app: ollama } }
+    spec:
+      hostNetwork: true
+      containers:
+        - name: ollama
+          image: ollama/ollama:latest
+          env: [{ name: OLLAMA_DEBUG, value: "true" }]
