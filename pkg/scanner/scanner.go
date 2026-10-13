@@ -6,9 +6,9 @@ import (
 	"sort"
 	"time"
 
-	"github.com/aiguard/ai-guard-k8s/pkg/checks"
-	"github.com/aiguard/ai-guard-k8s/pkg/detect"
-	"github.com/aiguard/ai-guard-k8s/pkg/target"
+	"github.com/sv222/ai-guard-k8s/pkg/checks"
+	"github.com/sv222/ai-guard-k8s/pkg/detect"
+	"github.com/sv222/ai-guard-k8s/pkg/target"
 )
 
 const clusterTimeout = 2 * time.Minute

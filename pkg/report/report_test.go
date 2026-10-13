@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aiguard/ai-guard-k8s/pkg/checks"
+	"github.com/sv222/ai-guard-k8s/pkg/checks"
 )
 
 func TestPrintJSONRoundTrip(t *testing.T) {

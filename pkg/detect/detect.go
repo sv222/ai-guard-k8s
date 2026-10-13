@@ -3,7 +3,7 @@ package detect
 import (
 	"strings"
 
-	"github.com/aiguard/ai-guard-k8s/pkg/target"
+	"github.com/sv222/ai-guard-k8s/pkg/target"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 )

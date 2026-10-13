@@ -23,13 +23,13 @@ It is not a prompt scanner or a model scanner. It does not test prompt injection
 
 ## Install
 
-With Go (the module path in `go.mod` is a placeholder. Replace it with the real repository path once it is published):
+With Go:
 
-    go install github.com/aiguard/ai-guard-k8s@latest
+    go install github.com/sv222/ai-guard-k8s@latest
 
 Build from source:
 
-    git clone <repository-url>
+    git clone https://github.com/sv222/ai-guard-k8s.git
     cd ai-guard-k8s
     make build
     ./ai-guard --version
@@ -76,7 +76,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: stable
-      - run: go install github.com/aiguard/ai-guard-k8s@latest
+      - run: go install github.com/sv222/ai-guard-k8s@latest
       - run: ai-guard scan --path manifests/ --fail-on high
 ```
 

@@ -5,9 +5,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/aiguard/ai-guard-k8s/pkg/checks"
-	"github.com/aiguard/ai-guard-k8s/pkg/report"
-	"github.com/aiguard/ai-guard-k8s/pkg/scanner"
+	"github.com/sv222/ai-guard-k8s/pkg/checks"
+	"github.com/sv222/ai-guard-k8s/pkg/report"
+	"github.com/sv222/ai-guard-k8s/pkg/scanner"
 )
 
 func newScanCmd(kubeconfig *string) *cobra.Command {

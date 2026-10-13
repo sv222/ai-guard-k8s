@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aiguard/ai-guard-k8s/pkg/checks"
-	"github.com/aiguard/ai-guard-k8s/pkg/target"
+	"github.com/sv222/ai-guard-k8s/pkg/checks"
+	"github.com/sv222/ai-guard-k8s/pkg/target"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

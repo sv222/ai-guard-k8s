@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/aiguard/ai-guard-k8s/pkg/detect"
-	"github.com/aiguard/ai-guard-k8s/pkg/target"
+	"github.com/sv222/ai-guard-k8s/pkg/detect"
+	"github.com/sv222/ai-guard-k8s/pkg/target"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

@@ -1,4 +1,4 @@
-module github.com/aiguard/ai-guard-k8s
+module github.com/sv222/ai-guard-k8s
 
 go 1.23.0
 

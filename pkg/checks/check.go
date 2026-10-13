@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/aiguard/ai-guard-k8s/pkg/target"
+	"github.com/sv222/ai-guard-k8s/pkg/target"
 )
 
 type Finding struct {

@@ -6,7 +6,7 @@ import (
 	"io"
 	"text/tabwriter"
 
-	"github.com/aiguard/ai-guard-k8s/pkg/checks"
+	"github.com/sv222/ai-guard-k8s/pkg/checks"
 )
 
 func PrintTable(w io.Writer, findings []checks.Finding) error {

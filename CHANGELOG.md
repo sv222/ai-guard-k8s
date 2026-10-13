@@ -17,5 +17,5 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Label `ai.infra.guard/enabled` and annotation `ai.infra.guard/gateway-auth`.
 - Policy pack in `policies/`, checked by a golden test.
 
-[Unreleased]: https://github.com/aiguard/ai-guard-k8s/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/aiguard/ai-guard-k8s/releases/tag/v0.1.0
+[Unreleased]: https://github.com/sv222/ai-guard-k8s/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/sv222/ai-guard-k8s/releases/tag/v0.1.0

@@ -7,7 +7,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/aiguard/ai-guard-k8s/pkg/selector"
+	"github.com/sv222/ai-guard-k8s/pkg/selector"
 	"sigs.k8s.io/yaml"
 )
 

@@ -7,8 +7,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/aiguard/ai-guard-k8s/pkg/enforce"
-	"github.com/aiguard/ai-guard-k8s/pkg/selector"
+	"github.com/sv222/ai-guard-k8s/pkg/enforce"
+	"github.com/sv222/ai-guard-k8s/pkg/selector"
 )
 
 const applyTimeout = 60 * time.Second

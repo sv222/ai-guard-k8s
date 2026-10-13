@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/aiguard/ai-guard-k8s/cmd"
+	"github.com/sv222/ai-guard-k8s/cmd"
 )
 
 func main() {
