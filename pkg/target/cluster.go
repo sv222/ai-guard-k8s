@@ -76,6 +76,13 @@ func FromClientset(ctx context.Context, cs kubernetes.Interface, namespace strin
 	for _, o := range jobs.Items {
 		out.Targets = append(out.Targets, fromTemplate("Job", o.ObjectMeta, o.Spec.Template, "cluster"))
 	}
+	crons, err := cs.BatchV1().CronJobs(namespace).List(ctx, opt)
+	if err != nil {
+		return out, err
+	}
+	for _, o := range crons.Items {
+		out.Targets = append(out.Targets, fromTemplate("CronJob", o.ObjectMeta, o.Spec.JobTemplate.Spec.Template, "cluster"))
+	}
 	pods, err := cs.CoreV1().Pods(namespace).List(ctx, opt)
 	if err != nil {
 		return out, err

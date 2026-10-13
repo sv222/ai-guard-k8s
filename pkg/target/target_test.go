@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	appsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
@@ -221,5 +222,67 @@ func TestFromClusterWithoutKubeconfig(t *testing.T) {
 	}
 	if _, err := FromCluster(context.Background(), filepath.Join(t.TempDir(), "explicit-missing"), ""); err == nil {
 		t.Error("expected error for missing explicit kubeconfig")
+	}
+}
+
+func TestFromDirCronJob(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "cron.yaml", `apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: vllm-batch
+  namespace: llm
+  labels:
+    ai.infra.guard/enabled: "true"
+spec:
+  schedule: "0 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: vllm-batch
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: c
+              image: vllm/vllm-openai:v0.6.0
+`)
+	ds, err := FromDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ds.Targets) != 1 {
+		t.Fatalf("targets = %d, want 1", len(ds.Targets))
+	}
+	w := ds.Targets[0]
+	if w.Kind != "CronJob" || w.Namespace != "llm" || w.Name != "vllm-batch" {
+		t.Errorf("identity = %s/%s/%s", w.Kind, w.Namespace, w.Name)
+	}
+	if w.Labels["app"] != "vllm-batch" || w.MetaLabels["ai.infra.guard/enabled"] != "true" {
+		t.Errorf("labels template=%v meta=%v", w.Labels, w.MetaLabels)
+	}
+	if len(w.Containers()) != 1 || w.Containers()[0].Image != "vllm/vllm-openai:v0.6.0" {
+		t.Errorf("containers = %+v", w.Containers())
+	}
+}
+
+func TestFromClientsetCronJob(t *testing.T) {
+	cs := fake.NewSimpleClientset(&batchv1.CronJob{
+		ObjectMeta: metav1.ObjectMeta{Name: "ollama-batch", Namespace: "llm"},
+		Spec: batchv1.CronJobSpec{JobTemplate: batchv1.JobTemplateSpec{Spec: batchv1.JobSpec{
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"app": "ollama"}},
+				Spec:       corev1.PodSpec{Containers: []corev1.Container{{Name: "c", Image: "ollama/ollama"}}},
+			},
+		}}},
+	})
+	ds, err := FromClientset(context.Background(), cs, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ds.Targets) != 1 || ds.Targets[0].Kind != "CronJob" || ds.Targets[0].Name != "ollama-batch" ||
+		ds.Targets[0].Labels["app"] != "ollama" {
+		t.Errorf("targets = %+v", ds.Targets)
 	}
 }

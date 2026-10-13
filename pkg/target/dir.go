@@ -115,6 +115,12 @@ func consumeObject(out *DirScan, raw []byte, source string) error {
 			return err
 		}
 		out.Targets = append(out.Targets, fromTemplate("Job", o.ObjectMeta, o.Spec.Template, source))
+	case "CronJob":
+		var o batchv1.CronJob
+		if err := decodeInto(raw, &o); err != nil {
+			return err
+		}
+		out.Targets = append(out.Targets, fromTemplate("CronJob", o.ObjectMeta, o.Spec.JobTemplate.Spec.Template, source))
 	case "Pod":
 		var o corev1.Pod
 		if err := decodeInto(raw, &o); err != nil {
