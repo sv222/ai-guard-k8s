@@ -154,6 +154,22 @@ func TestPodSpecChecks(t *testing.T) {
 		{"005 container nonzero user overrides pod root", func(w *target.WorkloadTarget) {
 			w.PodSpec.SecurityContext = &corev1.PodSecurityContext{RunAsUser: ptr(int64(0))}
 			w.PodSpec.Containers[0].SecurityContext.RunAsUser = ptr(int64(1000))
+		}, "AIG-005", 1},
+		{"005 container nonzero user with runAsNonRoot overrides pod root", func(w *target.WorkloadTarget) {
+			w.PodSpec.SecurityContext = &corev1.PodSecurityContext{RunAsUser: ptr(int64(0)), RunAsNonRoot: ptr(true)}
+			w.PodSpec.Containers[0].SecurityContext.RunAsUser = ptr(int64(1000))
+		}, "AIG-005", 0},
+		{"005 nonzero runAsUser without runAsNonRoot", func(w *target.WorkloadTarget) {
+			w.PodSpec.SecurityContext = nil
+			w.PodSpec.Containers[0].SecurityContext.RunAsUser = ptr(int64(10001))
+		}, "AIG-005", 1},
+		{"005 nonzero runAsUser with pod runAsNonRoot false", func(w *target.WorkloadTarget) {
+			w.PodSpec.SecurityContext = &corev1.PodSecurityContext{RunAsNonRoot: ptr(false), RunAsUser: ptr(int64(10001))}
+		}, "AIG-005", 1},
+		{"005 nonzero runAsUser with runAsNonRoot", func(w *target.WorkloadTarget) {
+			w.PodSpec.SecurityContext = nil
+			w.PodSpec.Containers[0].SecurityContext.RunAsUser = ptr(int64(10001))
+			w.PodSpec.Containers[0].SecurityContext.RunAsNonRoot = ptr(true)
 		}, "AIG-005", 0},
 		{"005 pod runAsUser 0", func(w *target.WorkloadTarget) {
 			w.PodSpec.SecurityContext = &corev1.PodSecurityContext{RunAsUser: ptr(int64(0))}

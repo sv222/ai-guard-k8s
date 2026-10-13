@@ -105,7 +105,7 @@ If an authenticating gateway sits in front of a workload, set the label or annot
 | AIG-002 | Debug or insecure endpoint | Medium | `--debug`, `--allow-http`, or `OLLAMA_DEBUG` set to `true` or `1` | Remove the flag or variable |
 | AIG-003 | `hostNetwork` or `hostPID` | High | `spec.hostNetwork` or `spec.hostPID` is true | Set both to false |
 | AIG-004 | `hostPath` volume | High | Any volume of type `hostPath` | Use a PVC or `emptyDir` |
-| AIG-005 | Root, privileged, or privilege escalation | High | Effective `runAsUser: 0`, no `runAsNonRoot` or non-zero `runAsUser`, `privileged: true`, `allowPrivilegeEscalation` unset or true | Set `runAsNonRoot: true`, `privileged: false`, `allowPrivilegeEscalation: false` |
+| AIG-005 | Root, privileged, or privilege escalation | High | Effective `runAsUser: 0`, effective `runAsNonRoot` not `true` (a non-zero `runAsUser` alone is not enough, as in PSS Restricted), `privileged: true`, `allowPrivilegeEscalation` unset or true | Set `runAsNonRoot: true`, `privileged: false`, `allowPrivilegeEscalation: false` |
 | AIG-006 | Seccomp profile missing or `Unconfined` | Medium | Effective `seccompProfile` (container, then pod) is unset or `Unconfined` | Set `seccompProfile.type: RuntimeDefault` |
 | AIG-007 | Missing resource requests or limits | Low | A container has no requests or no limits | Set both requests and limits |
 | AIG-008 | Unsafe model execution | High, Medium for `s3://` and `gs://` | `--trust-remote-code`; model args or env values ending in `.bin`, `.pt`, `.pth`, `.pkl`, `.pickle`, `.ckpt`; `s3://` or `gs://` sources | Remove the flag, use SafeTensors, pin model provenance |

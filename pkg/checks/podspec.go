@@ -114,10 +114,14 @@ func aig005(w target.WorkloadTarget) []Finding {
 			out = append(out, Finding{ID: "AIG-005", Title: "runs as root", Severity: "High",
 				Evidence: fmt.Sprintf("container %s: effective runAsUser: 0", c.Name),
 				Hint:     "set runAsUser to a non-zero UID and runAsNonRoot: true (PSS Restricted)"}.on(w))
-		case nonRoot != nil && *nonRoot, user != nil && *user != 0:
+		case nonRoot != nil && *nonRoot:
+		case user != nil:
+			out = append(out, Finding{ID: "AIG-005", Title: "runAsNonRoot not enforced", Severity: "High",
+				Evidence: fmt.Sprintf("container %s: runAsUser: %d is set but runAsNonRoot is not true (container or pod level)", c.Name, *user),
+				Hint:     "set runAsNonRoot: true; PSS Restricted does not accept runAsUser alone"}.on(w))
 		default:
 			out = append(out, Finding{ID: "AIG-005", Title: "runAsNonRoot not enforced", Severity: "High",
-				Evidence: fmt.Sprintf("container %s: neither runAsNonRoot: true nor a non-zero runAsUser is set (container or pod level)", c.Name),
+				Evidence: fmt.Sprintf("container %s: runAsNonRoot: true is not set (container or pod level)", c.Name),
 				Hint:     "set runAsNonRoot: true (PSS Restricted)"}.on(w))
 		}
 		if c.SecurityContext != nil && c.SecurityContext.Privileged != nil && *c.SecurityContext.Privileged {
