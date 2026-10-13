@@ -13,6 +13,8 @@ var Registry = []CheckFunc{aig001, aig002, aig003, aig004, aig005, aig006, aig00
 
 var authEnvNames = []string{"VLLM_API_KEY", "API_KEY", "OPENAI_API_KEY"}
 
+var authSecretHints = []string{"key", "token", "auth", "cred"}
+
 var unsafeModelExts = []string{".bin", ".pt", ".pth", ".pkl", ".pickle", ".ckpt"}
 
 func RunPodSpecChecks(w target.WorkloadTarget) []Finding {
@@ -312,7 +314,22 @@ func hasEnv(c corev1.Container, names ...string) bool {
 }
 
 func hasAuthEvidence(c corev1.Container) bool {
-	return hasArg(c, "--api-key") || hasEnv(c, authEnvNames...)
+	return hasArg(c, "--api-key") || hasEnv(c, authEnvNames...) || hasAuthEnvFrom(c)
+}
+
+func hasAuthEnvFrom(c corev1.Container) bool {
+	for _, ef := range c.EnvFrom {
+		if ef.SecretRef == nil {
+			continue
+		}
+		name := strings.ToLower(ef.SecretRef.Name)
+		for _, hint := range authSecretHints {
+			if strings.Contains(name, hint) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func envValue(c corev1.Container, name string) string {

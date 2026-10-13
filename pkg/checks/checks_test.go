@@ -109,6 +109,18 @@ func TestPodSpecChecks(t *testing.T) {
 		{"001 vllm shell string without key", container(func(c *corev1.Container) {
 			c.Command, c.Args = []string{"/bin/sh", "-c"}, []string{"exec vllm serve m"}
 		}), "AIG-001", 1},
+		{"001 vllm key via envFrom secret", container(func(c *corev1.Container) {
+			c.Args = nil
+			c.EnvFrom = []corev1.EnvFromSource{{SecretRef: &corev1.SecretEnvSource{LocalObjectReference: corev1.LocalObjectReference{Name: "vllm-API-Key"}}}}
+		}), "AIG-001", 0},
+		{"001 vllm unrelated envFrom secret", container(func(c *corev1.Container) {
+			c.Args = nil
+			c.EnvFrom = []corev1.EnvFromSource{{SecretRef: &corev1.SecretEnvSource{LocalObjectReference: corev1.LocalObjectReference{Name: "hf-settings"}}}}
+		}), "AIG-001", 1},
+		{"001 vllm envFrom configmap", container(func(c *corev1.Container) {
+			c.Args = nil
+			c.EnvFrom = []corev1.EnvFromSource{{ConfigMapRef: &corev1.ConfigMapEnvSource{LocalObjectReference: corev1.LocalObjectReference{Name: "api-key"}}}}
+		}), "AIG-001", 1},
 		{"001 ollama no auth", ollama(), "AIG-001", 1},
 		{"001 ollama api key env", ollama(corev1.EnvVar{Name: "API_KEY", Value: "x"}), "AIG-001", 0},
 		{"001 gateway annotation", func(w *target.WorkloadTarget) {
