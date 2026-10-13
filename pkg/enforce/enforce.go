@@ -27,6 +27,10 @@ var defaultFQDNs = []string{
 	"cas-bridge.xethub.hf.co",
 	"cas-server.xethub.hf.co",
 	"transfer.xethub.hf.co",
+	"us.aws.cdn.hf.co",
+	"us.gcp.cdn.hf.co",
+	"cas-server.xethub-eu.hf.co",
+	"transfer.xethub-eu.hf.co",
 }
 
 var fqdnPattern = regexp.MustCompile(`^[a-z0-9*]([a-z0-9*.-]*[a-z0-9*])?$`)

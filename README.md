@@ -148,7 +148,7 @@ Kyverno policies use `validationFailureAction: Audit` by default. They report vi
 
     ai-guard enforce --mode enforce
 
-The Cilium policy allows Hugging Face hosts by default: `huggingface.co`, `*.huggingface.co`, `cdn-lfs.huggingface.co`, `cdn-lfs.hf.co`, `*.hf.co` and three `xethub.hf.co` hosts. Add more hosts with a repeatable flag:
+The Cilium policy allows Hugging Face hosts by default: `huggingface.co`, `*.huggingface.co`, `cdn-lfs.huggingface.co`, `cdn-lfs.hf.co`, `*.hf.co` and the two-label storage hosts (`us.aws.cdn.hf.co`, `us.gcp.cdn.hf.co` and the `xethub` and `xethub-eu` hosts), because a Cilium `*` matches one label only. Add more hosts with a repeatable flag:
 
     ai-guard enforce --allow-fqdn models.example.com --allow-fqdn '*.cdn.example.org'
 

@@ -24,6 +24,10 @@ spec:
     - matchName: cas-bridge.xethub.hf.co
     - matchName: cas-server.xethub.hf.co
     - matchName: transfer.xethub.hf.co
+    - matchName: us.aws.cdn.hf.co
+    - matchName: us.gcp.cdn.hf.co
+    - matchName: cas-server.xethub-eu.hf.co
+    - matchName: transfer.xethub-eu.hf.co
   endpointSelector:
     matchLabels:
       ai.infra.guard/enabled: "true"

@@ -170,7 +170,7 @@ func TestFQDNs(t *testing.T) {
 		return files[3].Content
 	}
 	base := cilium()
-	for _, h := range []string{"huggingface.co", "cdn-lfs.hf.co", "cas-bridge.xethub.hf.co", "transfer.xethub.hf.co", "cas-server.xethub.hf.co"} {
+	for _, h := range []string{"huggingface.co", "cdn-lfs.hf.co", "cas-bridge.xethub.hf.co", "transfer.xethub.hf.co", "cas-server.xethub.hf.co", "us.aws.cdn.hf.co", "us.gcp.cdn.hf.co", "cas-server.xethub-eu.hf.co", "transfer.xethub-eu.hf.co"} {
 		if !strings.Contains(base, "matchName: "+h) {
 			t.Errorf("default policy lacks %s", h)
 		}
