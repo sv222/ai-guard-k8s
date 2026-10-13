@@ -1,0 +1,24 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: aig-block-host-access
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+- name: block-host-access
+  match:
+    any:
+    - resources:
+        kinds: [Pod]
+        selector:
+          matchLabels:
+            ai.infra.guard/enabled: "true"
+  validate:
+    message: "AI inference pods must not use hostNetwork/hostPID/hostPath"
+    pattern:
+      spec:
+        =(hostNetwork): "false"
+        =(hostPID): "false"
+        =(volumes):
+          - X(hostPath): "null"

@@ -1,0 +1,25 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: aig-require-nonroot
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+- name: require-nonroot
+  match:
+    any:
+    - resources:
+        kinds: [Pod]
+        selector:
+          matchLabels:
+            ai.infra.guard/enabled: "true"
+  validate:
+    message: "AI inference pods must set runAsNonRoot and disallow privilege escalation"
+    pattern:
+      spec:
+        securityContext:
+          runAsNonRoot: true
+        =(containers):
+          - =(securityContext):
+              =(allowPrivilegeEscalation): "false"

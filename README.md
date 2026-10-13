@@ -23,3 +23,12 @@ pickle formats, unverified object storage) · AIG-009 no NetworkPolicy ·
 AIG-010 exposed Service.
 
 Apache-2.0. Provided as-is; risk acceptance remains with your organization.
+
+## Enforce (policy pack)
+
+    ai-guard enforce --out policies/                     # write Kyverno + Cilium YAML
+    ai-guard enforce --apply                             # server-side apply to the live cluster
+    ai-guard enforce --selector team=llm --out policies/ # scope to another label selector
+
+The generated pack is mirrored in [`policies/`](policies/) — ready for Artifact Hub
+or upstreaming to `kyverno/policies`.
