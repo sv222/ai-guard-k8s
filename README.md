@@ -1,8 +1,13 @@
 # ai-guard-k8s
 
-kube-bench + Pod Security Standards for AI inference: vLLM, Ollama, Triton, TGI, Ray Serve.
+Audit and harden Kubernetes AI inference workloads (vLLM, Ollama). Also covers Triton, TGI and Ray Serve.
 
-`ai-guard` is a small Go CLI. It audits Kubernetes workloads that run AI inference engines. It also generates Kyverno and Cilium policies to harden them.
+[![ci](https://github.com/sv222/ai-guard-k8s/actions/workflows/ci.yml/badge.svg)](https://github.com/sv222/ai-guard-k8s/actions/workflows/ci.yml)
+[![license](https://img.shields.io/github/license/sv222/ai-guard-k8s)](LICENSE)
+
+`ai-guard` is a small Go CLI. It works like kube-bench and Pod Security Standards, but for AI inference workloads. It scans Kubernetes manifests or a live cluster for unsafe settings. It also generates Kyverno and Cilium policies to harden your workloads. It gives JSON output and exit codes for CI.
+
+Supported platforms: Linux, macOS and Windows, on amd64 and arm64.
 
 ## Kubernetes security scanner for vLLM and Ollama
 
@@ -22,6 +27,8 @@ The tool looks at the infrastructure layer of your inference workloads:
 It is not a prompt scanner or a model scanner. It does not test prompt injection, jailbreaks or model weights. It reads Kubernetes objects only.
 
 ## Install
+
+From a release: download the archive for your system from the [Releases page](https://github.com/sv222/ai-guard-k8s/releases). Files are named `ai-guard_<version>_<os>_<arch>.tar.gz`, or `.zip` on Windows. Unpack it and put `ai-guard` in your `PATH`. Check the download with `checksums.txt`.
 
 With Go:
 
@@ -159,6 +166,40 @@ Apply to a cluster:
 - Auth detection is evidence-based. It looks for `--api-key` and known env names. It cannot prove that auth works.
 - Engines are found by image or workload name. A custom image name may need the opt-in label or `--workload-selector`.
 - Pods owned by a Deployment, StatefulSet, DaemonSet, Job or ReplicaSet are not scanned alone. Their owner is.
+
+## FAQ
+
+### How do I secure vLLM on Kubernetes?
+
+Run `ai-guard scan --path manifests/`. It checks for a missing `--api-key`, root user, host access, `--trust-remote-code` and more. Then generate policies with `ai-guard enforce`.
+
+### How do I secure Ollama on Kubernetes?
+
+Ollama has no built-in auth. Put an authenticating gateway in front of it, or restrict traffic with a NetworkPolicy. AIG-001, AIG-009 and AIG-010 check for this.
+
+### What if vLLM runs without an API key on Kubernetes?
+
+AIG-001 reports it as High. Add `--api-key` or a `VLLM_API_KEY` env var. If a gateway handles auth, set the annotation `ai.infra.guard/gateway-auth: "true"`.
+
+### What if Ollama is exposed by a NodePort or LoadBalancer?
+
+AIG-010 reports a `LoadBalancer` or `NodePort` Service that selects an inference workload with no auth evidence. Use an internal Service or add auth.
+
+### How do I allow huggingface.co in a Cilium egress policy?
+
+`ai-guard enforce` writes a `CiliumNetworkPolicy` with FQDN egress. It allows DNS and Hugging Face hosts by default. Add more hosts with `--allow-fqdn`.
+
+### How do I block hostPath and hostNetwork with Kyverno?
+
+`ai-guard enforce` writes the Kyverno policy `aig-block-host-access.yaml`. It also writes policies that require `runAsNonRoot` and resource limits.
+
+### Why is trust-remote-code a risk for vLLM?
+
+It runs code from the model repository. AIG-008 reports `--trust-remote-code`. It also reports pickle model files such as `.bin` and `.pkl`. Use SafeTensors instead.
+
+### Can I scan Helm template output for security issues?
+
+Yes. Render the chart first with `helm template`, then run `ai-guard scan --path` on the output. Use `--fail-on high` to run it in GitHub Actions.
 
 ## Contributing
 
