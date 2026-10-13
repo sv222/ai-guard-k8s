@@ -218,6 +218,18 @@ func TestPodSpecChecks(t *testing.T) {
 
 		{"007 missing limits", container(func(c *corev1.Container) { c.Resources.Limits = nil }), "AIG-007", 1},
 		{"007 missing requests", container(func(c *corev1.Container) { c.Resources.Requests = nil }), "AIG-007", 1},
+		{"007 missing requests.cpu", container(func(c *corev1.Container) {
+			c.Resources.Requests = corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("1Gi")}
+		}), "AIG-007", 1},
+		{"007 missing requests.memory", container(func(c *corev1.Container) {
+			c.Resources.Requests = corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("1")}
+		}), "AIG-007", 1},
+		{"007 missing limits.memory", container(func(c *corev1.Container) {
+			c.Resources.Limits = corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("1")}
+		}), "AIG-007", 1},
+		{"007 no cpu limit is fine", container(func(c *corev1.Container) {
+			c.Resources.Limits = corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("1Gi")}
+		}), "AIG-007", 0},
 		{"007 init missing", pod(func(p *corev1.PodSpec) {
 			p.InitContainers = []corev1.Container{{Name: "i", Image: "busybox", SecurityContext: &corev1.SecurityContext{AllowPrivilegeEscalation: ptr(false)}}}
 		}), "AIG-007", 1},

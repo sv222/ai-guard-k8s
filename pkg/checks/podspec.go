@@ -169,14 +169,28 @@ func aig006(w target.WorkloadTarget) []Finding {
 func aig007(w target.WorkloadTarget) []Finding {
 	var out []Finding
 	for _, c := range w.AllContainers() {
-		r := c.Resources
-		if len(r.Limits) == 0 || len(r.Requests) == 0 {
+		var missing []string
+		if !hasResource(c.Resources.Requests, corev1.ResourceMemory) {
+			missing = append(missing, "requests.memory")
+		}
+		if !hasResource(c.Resources.Requests, corev1.ResourceCPU) {
+			missing = append(missing, "requests.cpu")
+		}
+		if !hasResource(c.Resources.Limits, corev1.ResourceMemory) {
+			missing = append(missing, "limits.memory")
+		}
+		if len(missing) > 0 {
 			out = append(out, Finding{ID: "AIG-007", Title: "missing resource requests/limits", Severity: "Low",
-				Evidence: fmt.Sprintf("container %s lacks requests or limits", c.Name),
-				Hint:     "set both requests and limits (GPU workloads starve nodes)"}.on(w))
+				Evidence: fmt.Sprintf("container %s lacks %s", c.Name, strings.Join(missing, ", ")),
+				Hint:     "set requests.memory, requests.cpu and limits.memory (GPU workloads starve nodes)"}.on(w))
 		}
 	}
 	return out
+}
+
+func hasResource(l corev1.ResourceList, name corev1.ResourceName) bool {
+	_, ok := l[name]
+	return ok
 }
 
 func aig008(w target.WorkloadTarget) []Finding {
