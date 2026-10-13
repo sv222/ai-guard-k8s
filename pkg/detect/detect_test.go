@@ -15,15 +15,28 @@ func mk(name, image string, labels map[string]string) target.WorkloadTarget {
 }
 
 func TestImageMatch(t *testing.T) {
-	for _, img := range []string{
-		"vllm/vllm-openai:v0.6.0",
-		"registry.io/platform/genai:v1", // no match expected
-	} {
-		got := IsAIWorkload(mk("x", img, nil), "")
-		want := img == "vllm/vllm-openai:v0.6.0"
-		if got != want {
-			t.Errorf("IsAIWorkload(%s) = %v, want %v", img, got, want)
+	tests := []struct {
+		image string
+		want  bool
+	}{
+		{"vllm/vllm-openai:v0.6.0", true},
+		{"ollama/ollama:latest", true},
+		{"nvcr.io/nvidia/tritonserver:24.05-py3", true},
+		{"ghcr.io/huggingface/text-generation-inference:2.0", true},
+		{"rayproject/ray-serve:2.9", true},
+		{"registry.io/platform/genai:v1", false},
+		{"nginx:1.27", false},
+	}
+	for _, tt := range tests {
+		if got := IsAIWorkload(mk("x", tt.image, nil), ""); got != tt.want {
+			t.Errorf("IsAIWorkload(%s) = %v, want %v", tt.image, got, tt.want)
 		}
+	}
+}
+
+func TestNameMatch(t *testing.T) {
+	if !IsAIWorkload(mk("my-ollama", "internal/img", nil), "") {
+		t.Error("workload name containing ollama should match")
 	}
 }
 
@@ -35,6 +48,26 @@ func TestLabelOptIn(t *testing.T) {
 	}
 }
 
+func TestLabelOptInFromWorkloadMetadata(t *testing.T) {
+	w := mk("genai", "internal/genai:v1", nil)
+	w.MetaLabels = map[string]string{"ai.infra.guard/enabled": "true"}
+	if !IsAIWorkload(w, "") {
+		t.Error("opt-in label on workload metadata should detect")
+	}
+	w.MetaLabels = map[string]string{"ai.infra.guard/enabled": "false"}
+	if IsAIWorkload(w, "") {
+		t.Error("opt-in label with value false must not detect")
+	}
+}
+
+func TestAnnotationOptIn(t *testing.T) {
+	w := mk("genai", "internal/genai:v1", nil)
+	w.MetaAnnotations = map[string]string{"ai.infra.guard/enabled": "true"}
+	if !IsAIWorkload(w, "") {
+		t.Error("opt-in annotation should detect")
+	}
+}
+
 func TestSelectorOverride(t *testing.T) {
 	w := mk("svc", "nginx", map[string]string{"tier": "inference"})
 	if !IsAIWorkload(w, "tier=inference") {
@@ -42,5 +75,34 @@ func TestSelectorOverride(t *testing.T) {
 	}
 	if IsAIWorkload(w, "tier=web") {
 		t.Error("non-matching selector must not detect")
+	}
+	if !IsAIWorkload(w, "tier in (inference,batch)") {
+		t.Error("set-based selector should detect")
+	}
+}
+
+func TestSelectorMatchesMetaLabels(t *testing.T) {
+	w := mk("svc", "nginx", nil)
+	w.MetaLabels = map[string]string{"tier": "inference"}
+	if !IsAIWorkload(w, "tier=inference") {
+		t.Error("selector should consider workload metadata labels")
+	}
+}
+
+func TestValidateSelector(t *testing.T) {
+	if err := ValidateSelector(""); err != nil {
+		t.Error(err)
+	}
+	if err := ValidateSelector("a=b,c!=d"); err != nil {
+		t.Error(err)
+	}
+	if err := ValidateSelector("a=b=="); err == nil {
+		t.Error("expected error for malformed selector")
+	}
+}
+
+func TestIsAIContainer(t *testing.T) {
+	if !IsAIContainer(corev1.Container{Image: "VLLM/vllm"}) || IsAIContainer(corev1.Container{Image: "envoy"}) {
+		t.Error("IsAIContainer wrong")
 	}
 }

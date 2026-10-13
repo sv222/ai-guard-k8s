@@ -1,3 +1,5 @@
 /ai-guard
-/ai-guard.exe
+*.exe
 dist/
+temp/
+policies-out/

@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: ollama
+  labels:
+    ai.infra.guard/enabled: "true"
+spec:
+  serviceName: ollama
+  template:
+    metadata:
+      labels:
+        app: ollama
+      annotations:
+        a: b
+    spec:
+      initContainers:
+        - name: init
+          image: busybox
+      containers:
+        - name: c
+          image: ollama/ollama
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ignored
+---
+key: [unterminated
+other: : :
+---
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: solo
+spec:
+  containers:
+    - name: c
+      image: vllm/vllm-openai

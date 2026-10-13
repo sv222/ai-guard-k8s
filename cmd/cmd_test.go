@@ -1,0 +1,307 @@
+package cmd
+
+import (
+	"bytes"
+	"encoding/json"
+	"errors"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/aiguard/ai-guard-k8s/pkg/checks"
+)
+
+const (
+	cleanDir     = "../testdata/manifests/clean"
+	offendingDir = "../testdata/manifests/offending"
+)
+
+func run(t *testing.T, args ...string) (stdout, stderr string, code int) {
+	t.Helper()
+	var o, e bytes.Buffer
+	code = Run(args, &o, &e)
+	return o.String(), e.String(), code
+}
+
+func brokenKubeconfig(t *testing.T) {
+	t.Helper()
+	t.Setenv("KUBECONFIG", filepath.Join(t.TempDir(), "missing-kubeconfig"))
+}
+
+const lowOnly = `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vllm
+  namespace: llm
+spec:
+  selector:
+    matchLabels:
+      app: vllm
+  template:
+    metadata:
+      labels:
+        app: vllm
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: server
+          image: vllm/vllm-openai:v0.6.0
+          args: ["--api-key", "k"]
+          securityContext:
+            allowPrivilegeEscalation: false
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: deny
+  namespace: llm
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+`
+
+func TestVersion(t *testing.T) {
+	stdout, _, code := run(t, "--version")
+	if code != 0 || strings.TrimSpace(stdout) != "ai-guard "+Version {
+		t.Errorf("version output = %q code=%d", stdout, code)
+	}
+}
+
+func TestScanCleanPath(t *testing.T) {
+	brokenKubeconfig(t)
+	stdout, stderr, code := run(t, "scan", "--path", cleanDir)
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%s stdout=%s", code, stderr, stdout)
+	}
+	if !strings.Contains(stdout, "No findings") {
+		t.Errorf("stdout = %q", stdout)
+	}
+}
+
+func TestScanPathDoesNotNeedCluster(t *testing.T) {
+	brokenKubeconfig(t)
+	_, stderr, code := run(t, "scan", "--path", offendingDir)
+	if code != 1 {
+		t.Errorf("code = %d, want 1 (findings, not a cluster error); stderr=%s", code, stderr)
+	}
+	if strings.Contains(stderr, "Error:") {
+		t.Errorf("unexpected error: %s", stderr)
+	}
+}
+
+func TestScanOffendingTable(t *testing.T) {
+	stdout, _, code := run(t, "scan", "--path", offendingDir)
+	if code != 1 {
+		t.Fatalf("code = %d", code)
+	}
+	for _, id := range []string{"AIG-001", "AIG-003", "AIG-010"} {
+		if !strings.Contains(stdout, id) {
+			t.Errorf("table lacks %s:\n%s", id, stdout)
+		}
+	}
+}
+
+func TestScanJSON(t *testing.T) {
+	stdout, _, code := run(t, "scan", "--path", offendingDir, "--json")
+	if code != 1 {
+		t.Fatalf("code = %d", code)
+	}
+	var fs []checks.Finding
+	if err := json.Unmarshal([]byte(stdout), &fs); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, stdout)
+	}
+	if len(fs) == 0 || fs[0].ID == "" || fs[0].Evidence == "" {
+		t.Errorf("findings = %+v", fs)
+	}
+}
+
+func TestScanJSONCleanIsEmptyArray(t *testing.T) {
+	stdout, _, code := run(t, "scan", "--path", cleanDir, "--json")
+	if code != 0 || strings.TrimSpace(stdout) != "[]" {
+		t.Errorf("code=%d stdout=%q", code, stdout)
+	}
+}
+
+func TestScanFailOn(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "m.yaml"), []byte(lowOnly), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, code := run(t, "scan", "--path", dir); code != 1 {
+		t.Errorf("default fail-on code = %d, want 1", code)
+	}
+	if _, _, code := run(t, "scan", "--path", dir, "--fail-on", "low"); code != 1 {
+		t.Errorf("fail-on low code = %d, want 1", code)
+	}
+	if _, _, code := run(t, "scan", "--path", dir, "--fail-on", "medium"); code != 0 {
+		t.Errorf("fail-on medium code = %d, want 0", code)
+	}
+	if _, _, code := run(t, "scan", "--path", offendingDir, "--fail-on", "high"); code != 1 {
+		t.Errorf("fail-on high on offending code = %d, want 1", code)
+	}
+	if _, stderr, code := run(t, "scan", "--path", dir, "--fail-on", "critical"); code != 2 || !strings.Contains(stderr, "invalid severity") {
+		t.Errorf("bad fail-on code=%d stderr=%s", code, stderr)
+	}
+}
+
+func TestScanMissingPathIsError(t *testing.T) {
+	_, stderr, code := run(t, "scan", "--path", filepath.Join(t.TempDir(), "nope"))
+	if code != 2 {
+		t.Errorf("code = %d, want 2", code)
+	}
+	if !strings.Contains(stderr, "Error:") || strings.Contains(stderr, "Usage:") {
+		t.Errorf("stderr = %q (want error without usage dump)", stderr)
+	}
+}
+
+func TestScanWithoutPathUsesCluster(t *testing.T) {
+	brokenKubeconfig(t)
+	_, stderr, code := run(t, "scan")
+	if code != 2 || !strings.Contains(stderr, "cluster scan") {
+		t.Errorf("code=%d stderr=%q", code, stderr)
+	}
+}
+
+func TestScanClusterFlagAddsCluster(t *testing.T) {
+	brokenKubeconfig(t)
+	_, stderr, code := run(t, "scan", "--path", cleanDir, "--cluster")
+	if code != 2 || !strings.Contains(stderr, "cluster scan") {
+		t.Errorf("code=%d stderr=%q", code, stderr)
+	}
+}
+
+func TestScanOfflineIsDeprecatedNoop(t *testing.T) {
+	brokenKubeconfig(t)
+	_, stderr, code := run(t, "scan", "--path", cleanDir, "--offline")
+	if code != 0 {
+		t.Errorf("code = %d stderr=%s", code, stderr)
+	}
+	if !strings.Contains(stderr, "deprecated") {
+		t.Errorf("no deprecation notice: %q", stderr)
+	}
+}
+
+func TestScanWarnsOnInvalidYAML(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "broken.yaml"), []byte("key: [unterminated\nother: : :\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, stderr, code := run(t, "scan", "--path", dir)
+	if code != 0 {
+		t.Errorf("code = %d", code)
+	}
+	if !strings.Contains(stderr, "warning:") || !strings.Contains(stderr, "broken.yaml") {
+		t.Errorf("stderr = %q", stderr)
+	}
+}
+
+func TestScanWorkloadSelector(t *testing.T) {
+	dir := t.TempDir()
+	manifest := strings.NewReplacer("vllm/vllm-openai:v0.6.0", "nginx", "name: vllm", "name: web").Replace(lowOnly)
+	manifest = strings.Replace(manifest, "app: vllm\n    spec", "app: vllm\n        tier: inference\n    spec", 1)
+	if err := os.WriteFile(filepath.Join(dir, "m.yaml"), []byte(manifest), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, code := run(t, "scan", "--path", dir); code != 0 {
+		t.Errorf("non-AI workload flagged, code = %d", code)
+	}
+	if _, _, code := run(t, "scan", "--path", dir, "--workload-selector", "tier=inference"); code != 1 {
+		t.Errorf("selected workload not scanned, code = %d", code)
+	}
+	if _, stderr, code := run(t, "scan", "--path", dir, "--workload-selector", "tier in (("); code != 2 || !strings.Contains(stderr, "selector") {
+		t.Errorf("invalid selector code=%d stderr=%s", code, stderr)
+	}
+}
+
+func TestEnforceWritesPolicies(t *testing.T) {
+	out := filepath.Join(t.TempDir(), "out")
+	stdout, stderr, code := run(t, "enforce", "--out", out, "--selector", "team=llm,tier=gpu",
+		"--mode", "enforce", "--allow-fqdn", "models.example.com", "--allow-fqdn", "*.cdn.example.org")
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%s", code, stderr)
+	}
+	if !strings.Contains(stdout, "wrote 4 policies") {
+		t.Errorf("stdout = %q", stdout)
+	}
+	cilium, err := os.ReadFile(filepath.Join(out, "aig-cilium-egress-fqdn.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"team: llm", "tier: gpu", "models.example.com", "cdn.example.org", "cdn-lfs.hf.co"} {
+		if !strings.Contains(string(cilium), want) {
+			t.Errorf("cilium policy lacks %q", want)
+		}
+	}
+	kyverno, err := os.ReadFile(filepath.Join(out, "aig-require-nonroot.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(kyverno), "validationFailureAction: Enforce") || !strings.Contains(string(kyverno), "team: llm") {
+		t.Errorf("kyverno policy wrong:\n%s", kyverno)
+	}
+}
+
+func TestEnforceDefaultsToAudit(t *testing.T) {
+	out := t.TempDir()
+	if _, stderr, code := run(t, "enforce", "--out", out); code != 0 {
+		t.Fatalf("code = %d stderr=%s", code, stderr)
+	}
+	b, err := os.ReadFile(filepath.Join(out, "aig-block-host-access.yaml"))
+	if err != nil || !strings.Contains(string(b), "validationFailureAction: Audit") {
+		t.Errorf("default mode is not Audit: %v\n%s", err, b)
+	}
+}
+
+func TestEnforceDryRun(t *testing.T) {
+	brokenKubeconfig(t)
+	out := filepath.Join(t.TempDir(), "should-not-exist")
+	stdout, _, code := run(t, "enforce", "--apply", "--dry-run", "--out", out)
+	if code != 0 {
+		t.Fatalf("code = %d", code)
+	}
+	if strings.Count(stdout, "would apply") != 4 {
+		t.Errorf("stdout = %q", stdout)
+	}
+	if _, err := os.Stat(out); !errors.Is(err, os.ErrNotExist) {
+		t.Error("dry-run must not write files")
+	}
+}
+
+func TestEnforceInvalidOptions(t *testing.T) {
+	for _, args := range [][]string{
+		{"enforce", "--mode", "block"},
+		{"enforce", "--selector", "nokey"},
+		{"enforce", "--allow-fqdn", "*"},
+	} {
+		_, stderr, code := run(t, args...)
+		if code != 2 || !strings.Contains(stderr, "Error:") {
+			t.Errorf("%v: code=%d stderr=%q", args, code, stderr)
+		}
+	}
+}
+
+func TestEnforceApplyWithoutCluster(t *testing.T) {
+	brokenKubeconfig(t)
+	_, stderr, code := run(t, "enforce", "--apply")
+	if code != 2 || !strings.Contains(stderr, "Error:") {
+		t.Errorf("code=%d stderr=%q", code, stderr)
+	}
+}
+
+func TestExitErrorHelpers(t *testing.T) {
+	inner := errors.New("boom")
+	e := &ExitError{Code: 2, Err: inner}
+	if e.Error() != "boom" || !errors.Is(e, inner) {
+		t.Error("ExitError does not wrap")
+	}
+	if (&ExitError{Code: 1}).Error() == "" {
+		t.Error("empty ExitError message")
+	}
+	if runtimeError(nil) != nil {
+		t.Error("runtimeError(nil) must be nil")
+	}
+}

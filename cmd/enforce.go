@@ -2,80 +2,66 @@ package cmd
 
 import (
 	"context"
-	"strings"
+	"fmt"
+	"time"
 
 	"github.com/spf13/cobra"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/tools/clientcmd"
-	"sigs.k8s.io/yaml"
 
 	"github.com/aiguard/ai-guard-k8s/pkg/enforce"
+	"github.com/aiguard/ai-guard-k8s/pkg/selector"
 )
 
-var (
-	enforceOut      string
-	enforceApply    bool
-	enforceSelector string
-)
+const applyTimeout = 60 * time.Second
 
-var enforceCmd = &cobra.Command{
-	Use:   "enforce",
-	Short: "Generate (and optionally apply) Kyverno + Cilium hardening policies",
-	RunE: func(c *cobra.Command, args []string) error {
-		files := enforce.Policies(enforceSelector)
-		if !enforceApply {
-			return enforce.Write(enforceOut, files)
-		}
-		rules := clientcmd.NewDefaultClientConfigLoadingRules()
-		if kubeconfig != "" {
-			rules.ExplicitPath = kubeconfig
-		}
-		config, err := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
-			rules, &clientcmd.ConfigOverrides{}).ClientConfig()
-		if err != nil {
-			return err
-		}
-		dc, err := dynamic.NewForConfig(config)
-		if err != nil {
-			return err
-		}
-		ctx := context.TODO()
-		for _, f := range files {
-			var obj unstructured.Unstructured
-			if err := yaml.Unmarshal([]byte(f.Content), &obj.Object); err != nil {
-				return err
-			}
-			gvr := schema.GroupVersionResource{
-				Group:    obj.GroupVersionKind().Group,
-				Version:  obj.GroupVersionKind().Version,
-				Resource: plural(obj.GetKind()),
-			}
-			_, err := dc.Resource(gvr).Apply(ctx, obj.GetName(), obj.DeepCopy(),
-				metav1.ApplyOptions{FieldManager: "ai-guard", Force: true})
+func newEnforceCmd(kubeconfig *string) *cobra.Command {
+	var (
+		out       string
+		apply     bool
+		dryRun    bool
+		sel       string
+		mode      string
+		fqdns     []string
+		namespace string
+	)
+	c := &cobra.Command{
+		Use:   "enforce",
+		Short: "Generate (and optionally apply) Kyverno + Cilium hardening policies",
+		RunE: func(c *cobra.Command, args []string) error {
+			files, err := enforce.Policies(enforce.Options{
+				Selector:   sel,
+				Mode:       mode,
+				AllowFQDNs: fqdns,
+				Namespace:  namespace,
+			})
 			if err != nil {
-				return err
+				return runtimeError(err)
 			}
-		}
-		return nil
-	},
-}
-
-func plural(kind string) string {
-	switch kind {
-	case "ClusterPolicy":
-		return "clusterpolicies"
-	case "CiliumNetworkPolicy":
-		return "ciliumnetworkpolicies"
+			c.SilenceUsage = true
+			switch {
+			case dryRun:
+				return runtimeError(enforce.Plan(files, namespace, c.OutOrStdout()))
+			case apply:
+				client, mapper, err := enforce.Clients(*kubeconfig)
+				if err != nil {
+					return runtimeError(err)
+				}
+				ctx, cancel := context.WithTimeout(c.Context(), applyTimeout)
+				defer cancel()
+				return runtimeError(enforce.Apply(ctx, client, mapper, files, namespace, c.OutOrStdout()))
+			}
+			if err := enforce.Write(out, files); err != nil {
+				return runtimeError(err)
+			}
+			fmt.Fprintf(c.OutOrStdout(), "wrote %d policies to %s\n", len(files), out)
+			return nil
+		},
 	}
-	return strings.ToLower(kind) + "s"
-}
-
-func init() {
-	enforceCmd.Flags().StringVar(&enforceOut, "out", "./policies-out", "output directory")
-	enforceCmd.Flags().BoolVar(&enforceApply, "apply", false, "server-side apply to live cluster")
-	enforceCmd.Flags().StringVar(&enforceSelector, "selector", "", "label selector scoping the policies (default ai.infra.guard/enabled=true)")
-	rootCmd.AddCommand(enforceCmd)
+	c.Flags().StringVar(&out, "out", "./policies-out", "output directory")
+	c.Flags().BoolVar(&apply, "apply", false, "server-side apply to the live cluster instead of writing files")
+	c.Flags().BoolVar(&dryRun, "dry-run", false, "print what --apply would apply and change nothing")
+	c.Flags().StringVar(&sel, "selector", selector.DefaultEnforce, "k=v[,k=v] label selector scoping the Kyverno and Cilium policies")
+	c.Flags().StringVar(&mode, "mode", enforce.ModeAudit, "Kyverno validationFailureAction: audit or enforce")
+	c.Flags().StringSliceVar(&fqdns, "allow-fqdn", nil, "extra host allowed for egress by the Cilium policy (repeatable)")
+	c.Flags().StringVarP(&namespace, "namespace", "n", "", "namespace for the namespaced CiliumNetworkPolicy (default: default)")
+	return c
 }

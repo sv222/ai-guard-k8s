@@ -3,23 +3,94 @@ kind: ClusterPolicy
 metadata:
   name: aig-require-nonroot
 spec:
-  validationFailureAction: Enforce
   background: true
   rules:
-- name: require-nonroot
-  match:
-    any:
-    - resources:
-        kinds: [Pod]
-        selector:
-          matchLabels:
-            ai.infra.guard/enabled: "true"
-  validate:
-    message: "AI inference pods must set runAsNonRoot and disallow privilege escalation"
-    pattern:
-      spec:
-        securityContext:
-          runAsNonRoot: true
-        =(containers):
+  - exclude:
+      any:
+      - resources:
+          namespaces:
+          - kube-system
+          - kube-public
+          - kube-node-lease
+    match:
+      any:
+      - resources:
+          kinds:
+          - Pod
+          selector:
+            matchLabels:
+              ai.infra.guard/enabled: "true"
+    name: require-nonroot
+    validate:
+      anyPattern:
+      - spec:
+          =(containers):
           - =(securityContext):
-              =(allowPrivilegeEscalation): "false"
+              =(runAsNonRoot): true
+          =(initContainers):
+          - =(securityContext):
+              =(runAsNonRoot): true
+          securityContext:
+            runAsNonRoot: true
+      - spec:
+          =(initContainers):
+          - securityContext:
+              runAsNonRoot: true
+          containers:
+          - securityContext:
+              runAsNonRoot: true
+      message: 'AI inference pods must run as non-root (runAsNonRoot: true at pod
+        level or on every container)'
+  - exclude:
+      any:
+      - resources:
+          namespaces:
+          - kube-system
+          - kube-public
+          - kube-node-lease
+    match:
+      any:
+      - resources:
+          kinds:
+          - Pod
+          selector:
+            matchLabels:
+              ai.infra.guard/enabled: "true"
+    name: disallow-privilege-escalation
+    validate:
+      message: 'AI inference containers must set allowPrivilegeEscalation: false'
+      pattern:
+        spec:
+          =(initContainers):
+          - securityContext:
+              allowPrivilegeEscalation: "false"
+          containers:
+          - securityContext:
+              allowPrivilegeEscalation: "false"
+  - exclude:
+      any:
+      - resources:
+          namespaces:
+          - kube-system
+          - kube-public
+          - kube-node-lease
+    match:
+      any:
+      - resources:
+          kinds:
+          - Pod
+          selector:
+            matchLabels:
+              ai.infra.guard/enabled: "true"
+    name: disallow-privileged
+    validate:
+      message: AI inference containers must not be privileged
+      pattern:
+        spec:
+          =(containers):
+          - =(securityContext):
+              =(privileged): "false"
+          =(initContainers):
+          - =(securityContext):
+              =(privileged): "false"
+  validationFailureAction: Audit

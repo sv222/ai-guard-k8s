@@ -8,8 +8,26 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-// FromCluster loads workloads, NetworkPolicies and Services from a live cluster.
-func FromCluster(kubeconfig, namespace string) (DirScan, error) {
+var controllerKinds = map[string]bool{
+	"Deployment":            true,
+	"ReplicaSet":            true,
+	"StatefulSet":           true,
+	"DaemonSet":             true,
+	"Job":                   true,
+	"CronJob":               true,
+	"ReplicationController": true,
+}
+
+func IsManagedPod(meta metav1.ObjectMeta) bool {
+	for _, ref := range meta.OwnerReferences {
+		if ref.Controller != nil && *ref.Controller && controllerKinds[ref.Kind] {
+			return true
+		}
+	}
+	return false
+}
+
+func FromCluster(ctx context.Context, kubeconfig, namespace string) (DirScan, error) {
 	rules := clientcmd.NewDefaultClientConfigLoadingRules()
 	if kubeconfig != "" {
 		rules.ExplicitPath = kubeconfig
@@ -23,7 +41,10 @@ func FromCluster(kubeconfig, namespace string) (DirScan, error) {
 	if err != nil {
 		return DirScan{}, err
 	}
-	ctx := context.TODO()
+	return FromClientset(ctx, cs, namespace)
+}
+
+func FromClientset(ctx context.Context, cs kubernetes.Interface, namespace string) (DirScan, error) {
 	opt := metav1.ListOptions{}
 	var out DirScan
 
@@ -32,64 +53,57 @@ func FromCluster(kubeconfig, namespace string) (DirScan, error) {
 		return out, err
 	}
 	for _, o := range deps.Items {
-		out.Targets = append(out.Targets, WorkloadTarget{Kind: "Deployment",
-			Namespace: o.Namespace, Name: o.Name, Labels: o.Spec.Template.Labels,
-			PodSpec: o.Spec.Template.Spec, Source: "cluster"})
+		out.Targets = append(out.Targets, fromTemplate("Deployment", o.ObjectMeta, o.Spec.Template, "cluster"))
 	}
 	sts, err := cs.AppsV1().StatefulSets(namespace).List(ctx, opt)
 	if err != nil {
 		return out, err
 	}
 	for _, o := range sts.Items {
-		out.Targets = append(out.Targets, WorkloadTarget{Kind: "StatefulSet",
-			Namespace: o.Namespace, Name: o.Name, Labels: o.Spec.Template.Labels,
-			PodSpec: o.Spec.Template.Spec, Source: "cluster"})
+		out.Targets = append(out.Targets, fromTemplate("StatefulSet", o.ObjectMeta, o.Spec.Template, "cluster"))
 	}
 	dss, err := cs.AppsV1().DaemonSets(namespace).List(ctx, opt)
 	if err != nil {
 		return out, err
 	}
 	for _, o := range dss.Items {
-		out.Targets = append(out.Targets, WorkloadTarget{Kind: "DaemonSet",
-			Namespace: o.Namespace, Name: o.Name, Labels: o.Spec.Template.Labels,
-			PodSpec: o.Spec.Template.Spec, Source: "cluster"})
+		out.Targets = append(out.Targets, fromTemplate("DaemonSet", o.ObjectMeta, o.Spec.Template, "cluster"))
 	}
 	jobs, err := cs.BatchV1().Jobs(namespace).List(ctx, opt)
 	if err != nil {
 		return out, err
 	}
 	for _, o := range jobs.Items {
-		out.Targets = append(out.Targets, WorkloadTarget{Kind: "Job",
-			Namespace: o.Namespace, Name: o.Name, Labels: o.Spec.Template.Labels,
-			PodSpec: o.Spec.Template.Spec, Source: "cluster"})
+		out.Targets = append(out.Targets, fromTemplate("Job", o.ObjectMeta, o.Spec.Template, "cluster"))
 	}
 	pods, err := cs.CoreV1().Pods(namespace).List(ctx, opt)
 	if err != nil {
 		return out, err
 	}
 	for _, o := range pods.Items {
-		out.Targets = append(out.Targets, WorkloadTarget{Kind: "Pod",
-			Namespace: o.Namespace, Name: o.Name, Labels: o.Labels,
-			PodSpec: o.Spec, Source: "cluster"})
+		if IsManagedPod(o.ObjectMeta) {
+			continue
+		}
+		out.Targets = append(out.Targets, WorkloadTarget{
+			Kind: "Pod", Namespace: o.Namespace, Name: o.Name,
+			Labels: o.Labels, MetaLabels: o.Labels,
+			Annotations: o.Annotations, MetaAnnotations: o.Annotations,
+			PodSpec: o.Spec, Source: "cluster",
+		})
 	}
 	nps, err := cs.NetworkingV1().NetworkPolicies(namespace).List(ctx, opt)
 	if err != nil {
 		return out, err
 	}
 	for _, o := range nps.Items {
-		out.NetPols = append(out.NetPols, NetworkPolicyEntry{Namespace: o.Namespace, PodSelector: o.Spec.PodSelector})
+		out.NetPols = append(out.NetPols, NetworkPolicyEntry{Namespace: o.Namespace, Name: o.Name, Spec: o.Spec})
 	}
 	svcs, err := cs.CoreV1().Services(namespace).List(ctx, opt)
 	if err != nil {
 		return out, err
 	}
 	for _, o := range svcs.Items {
-		var ports []int32
-		for _, p := range o.Spec.Ports {
-			ports = append(ports, p.Port)
-		}
-		out.Services = append(out.Services, ServiceEntry{Namespace: o.Namespace, Name: o.Name,
-			Type: string(o.Spec.Type), Selector: o.Spec.Selector, Ports: ports})
+		out.Services = append(out.Services, serviceEntry(o))
 	}
 	return out, nil
 }

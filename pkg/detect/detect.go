@@ -5,6 +5,7 @@ import (
 
 	"github.com/aiguard/ai-guard-k8s/pkg/target"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/labels"
 )
 
 const EnableLabel = "ai.infra.guard/enabled"
@@ -13,14 +14,23 @@ var patterns = []string{
 	"vllm", "ollama", "tritonserver", "text-generation-inference", "tgi", "ray-serve",
 }
 
-// IsAIWorkload reports whether w is an AI inference workload:
-// image/name pattern, opt-in label, or user selector (k=v,k=v AND semantics).
+func ValidateSelector(sel string) error {
+	if strings.TrimSpace(sel) == "" {
+		return nil
+	}
+	_, err := labels.Parse(sel)
+	return err
+}
+
 func IsAIWorkload(w target.WorkloadTarget, extraSelector string) bool {
-	if w.Labels[EnableLabel] == "true" {
+	all := w.MergedLabels()
+	if all[EnableLabel] == "true" || w.MergedAnnotations()[EnableLabel] == "true" {
 		return true
 	}
-	if extraSelector != "" && selectorMatches(extraSelector, w.Labels) {
-		return true
+	if strings.TrimSpace(extraSelector) != "" {
+		if sel, err := labels.Parse(extraSelector); err == nil && sel.Matches(labels.Set(all)) {
+			return true
+		}
 	}
 	hay := strings.ToLower(w.Name)
 	for _, c := range w.Containers() {
@@ -34,17 +44,6 @@ func IsAIWorkload(w target.WorkloadTarget, extraSelector string) bool {
 	return false
 }
 
-func selectorMatches(sel string, labels map[string]string) bool {
-	for _, kv := range strings.Split(sel, ",") {
-		parts := strings.SplitN(strings.TrimSpace(kv), "=", 2)
-		if len(parts) != 2 || labels[parts[0]] != parts[1] {
-			return false
-		}
-	}
-	return true
-}
-
-// IsAIContainer reports whether one container matches known inference images.
 func IsAIContainer(c corev1.Container) bool {
 	img := strings.ToLower(c.Image)
 	for _, p := range patterns {

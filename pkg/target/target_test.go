@@ -1,7 +1,16 @@
 package target
 
 import (
+	"context"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
+
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes/fake"
 )
 
 func TestFromDirExtractsWorkload(t *testing.T) {
@@ -19,21 +28,198 @@ func TestFromDirExtractsWorkload(t *testing.T) {
 	if w.Containers()[0].Image != "vllm/vllm-openai:v0.6.0" {
 		t.Errorf("image = %s", w.Containers()[0].Image)
 	}
-	if len(ds.NetPols) != 1 {
-		t.Errorf("netpols = %d, want 1", len(ds.NetPols))
+	if w.MetaLabels["app"] != "vllm" || w.Labels["app"] != "vllm" {
+		t.Errorf("labels meta=%v template=%v", w.MetaLabels, w.Labels)
+	}
+	if len(ds.NetPols) != 1 || ds.NetPols[0].Spec.PodSelector.MatchLabels != nil {
+		t.Errorf("expected one netpol with empty podSelector, got %+v", ds.NetPols)
+	}
+	if len(ds.Services) != 1 || ds.Services[0].Type != "LoadBalancer" {
+		t.Errorf("services = %+v", ds.Services)
+	}
+	if len(ds.Warnings) != 0 {
+		t.Errorf("unexpected warnings: %v", ds.Warnings)
+	}
+}
+
+func writeFile(t *testing.T, dir, name, content string) string {
+	t.Helper()
+	p := filepath.Join(dir, name)
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return p
+}
+
+func TestFromDirMultiDocWarningsAndKinds(t *testing.T) {
+	dir := t.TempDir()
+	data, err := os.ReadFile("testdata/multidoc.yaml.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, dir, "multi.yaml", string(data))
+	ds, err := FromDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ds.Targets) != 2 {
+		t.Fatalf("targets = %d, want 2", len(ds.Targets))
+	}
+	sts := ds.Targets[0]
+	if sts.Kind != "StatefulSet" || sts.Namespace != "default" || sts.MetaLabels["ai.infra.guard/enabled"] != "true" {
+		t.Errorf("statefulset target = %+v", sts)
+	}
+	if len(sts.AllContainers()) != 2 || sts.AllContainers()[0].Name != "init" {
+		t.Errorf("AllContainers = %+v", sts.AllContainers())
+	}
+	if sts.MergedLabels()["app"] != "ollama" || sts.MergedAnnotations()["a"] != "b" {
+		t.Errorf("merged metadata wrong: %v %v", sts.MergedLabels(), sts.MergedAnnotations())
+	}
+	if ds.Targets[1].Kind != "Pod" || ds.Targets[1].Name != "solo" {
+		t.Errorf("pod target = %+v", ds.Targets[1])
+	}
+	if len(ds.Warnings) != 1 {
+		t.Fatalf("warnings = %v, want exactly 1 (ConfigMap must be skipped quietly)", ds.Warnings)
+	}
+	if !strings.Contains(ds.Warnings[0], "multi.yaml") || !strings.Contains(ds.Warnings[0], "document 3") {
+		t.Errorf("warning lacks file/doc: %s", ds.Warnings[0])
+	}
+}
+
+func TestFromDirJSONAndList(t *testing.T) {
+	dir := t.TempDir()
+	list := `{"apiVersion":"v1","kind":"List","items":[` +
+		`{"apiVersion":"apps/v1","kind":"Deployment","metadata":{"name":"a","namespace":"x"},"spec":{"template":{"spec":{"containers":[{"name":"c","image":"vllm/vllm"}]}}}},` +
+		`{"apiVersion":"v1","kind":"Service","metadata":{"name":"s","namespace":"x"},"spec":{"type":"NodePort","selector":{"app":"a"},"ports":[{"port":80}]}}]}`
+	writeFile(t, dir, "list.json", list)
+	writeFile(t, dir, "notes.txt", "kind: Pod")
+	ds, err := FromDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ds.Targets) != 1 || len(ds.Services) != 1 || ds.Services[0].Type != "NodePort" {
+		t.Errorf("targets=%d services=%+v", len(ds.Targets), ds.Services)
+	}
+}
+
+func TestFromDirTypeErrorWarns(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "bad.yaml", "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: x\nspec:\n  replicas: many\n")
+	ds, err := FromDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ds.Targets) != 0 || len(ds.Warnings) != 1 || !strings.Contains(ds.Warnings[0], "bad.yaml") {
+		t.Errorf("targets=%d warnings=%v", len(ds.Targets), ds.Warnings)
+	}
+}
+
+func TestFromDirMissingPath(t *testing.T) {
+	if _, err := FromDir(filepath.Join(t.TempDir(), "nope")); err == nil {
+		t.Error("expected error for missing path")
+	}
+}
+
+func TestFromDirSingleFile(t *testing.T) {
+	ds, err := FromDir("testdata/vllm-deployment.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ds.Targets) != 1 {
+		t.Errorf("targets = %d", len(ds.Targets))
+	}
+}
+
+func TestWorkloadHelpers(t *testing.T) {
+	w := WorkloadTarget{
+		MetaLabels: map[string]string{"a": "meta", "b": "meta"},
+		Labels:     map[string]string{"a": "tpl"},
+		PodSpec: corev1.PodSpec{
+			InitContainers: []corev1.Container{{Name: "i"}},
+			Containers:     []corev1.Container{{Name: "c"}},
+		},
+	}
+	m := w.MergedLabels()
+	if m["a"] != "tpl" || m["b"] != "meta" {
+		t.Errorf("merged = %v", m)
+	}
+	if len(w.Containers()) != 1 || len(w.AllContainers()) != 2 {
+		t.Error("container helpers wrong")
+	}
+}
+
+func TestIsManagedPod(t *testing.T) {
+	yes, no := true, false
+	tests := []struct {
+		name string
+		meta metav1.ObjectMeta
+		want bool
+	}{
+		{"standalone", metav1.ObjectMeta{}, false},
+		{"replicaset", metav1.ObjectMeta{OwnerReferences: []metav1.OwnerReference{{Kind: "ReplicaSet", Controller: &yes}}}, true},
+		{"job", metav1.ObjectMeta{OwnerReferences: []metav1.OwnerReference{{Kind: "Job", Controller: &yes}}}, true},
+		{"non-controller ref", metav1.ObjectMeta{OwnerReferences: []metav1.OwnerReference{{Kind: "ReplicaSet", Controller: &no}}}, false},
+		{"custom controller", metav1.ObjectMeta{OwnerReferences: []metav1.OwnerReference{{Kind: "RayCluster", Controller: &yes}}}, false},
+	}
+	for _, tt := range tests {
+		if got := IsManagedPod(tt.meta); got != tt.want {
+			t.Errorf("%s: got %v want %v", tt.name, got, tt.want)
+		}
+	}
+}
+
+func TestFromClientsetSkipsManagedPods(t *testing.T) {
+	yes := true
+	cs := fake.NewSimpleClientset(
+		&appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{Name: "vllm", Namespace: "llm", Labels: map[string]string{"ai.infra.guard/enabled": "true"}},
+			Spec: appsv1.DeploymentSpec{Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"app": "vllm"}},
+				Spec:       corev1.PodSpec{Containers: []corev1.Container{{Name: "c", Image: "vllm/vllm"}}},
+			}},
+		},
+		&corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{Name: "vllm-abc-123", Namespace: "llm",
+				OwnerReferences: []metav1.OwnerReference{{Kind: "ReplicaSet", Name: "vllm-abc", Controller: &yes}}},
+			Spec: corev1.PodSpec{Containers: []corev1.Container{{Name: "c", Image: "vllm/vllm"}}},
+		},
+		&corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{Name: "solo", Namespace: "llm", Labels: map[string]string{"app": "solo"}},
+			Spec:       corev1.PodSpec{Containers: []corev1.Container{{Name: "c", Image: "ollama/ollama"}}},
+		},
+		&corev1.Service{
+			ObjectMeta: metav1.ObjectMeta{Name: "svc", Namespace: "llm"},
+			Spec:       corev1.ServiceSpec{Type: corev1.ServiceTypeLoadBalancer, Selector: map[string]string{"app": "vllm"}, Ports: []corev1.ServicePort{{Port: 80}}},
+		},
+	)
+	ds, err := FromClientset(context.Background(), cs, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, w := range ds.Targets {
+		names = append(names, w.Kind+"/"+w.Name)
+	}
+	if len(ds.Targets) != 2 || names[0] != "Deployment/vllm" || names[1] != "Pod/solo" {
+		t.Errorf("targets = %v", names)
+	}
+	if ds.Targets[0].MetaLabels["ai.infra.guard/enabled"] != "true" || ds.Targets[0].Labels["app"] != "vllm" {
+		t.Errorf("deployment labels not captured: %+v", ds.Targets[0])
 	}
 	if len(ds.Services) != 1 || ds.Services[0].Type != "LoadBalancer" {
 		t.Errorf("services = %+v", ds.Services)
 	}
 }
 
-func TestFromDirEmptySelectorNetPolCoversAll(t *testing.T) {
-	ds, err := FromDir("testdata")
-	if err != nil {
-		t.Fatal(err)
+func TestFromClusterWithoutKubeconfig(t *testing.T) {
+	t.Setenv("KUBECONFIG", filepath.Join(t.TempDir(), "missing"))
+	if _, err := FromCluster(context.Background(), "", ""); err == nil {
+		t.Error("expected error without a usable kubeconfig")
 	}
-	if len(ds.NetPols) != 1 || ds.NetPols[0].PodSelector.MatchLabels != nil &&
-		len(ds.NetPols[0].PodSelector.MatchLabels) != 0 {
-		t.Errorf("expected empty podSelector")
+	if _, err := FromCluster(context.Background(), filepath.Join(t.TempDir(), "explicit-missing"), ""); err == nil {
+		t.Error("expected error for missing explicit kubeconfig")
 	}
 }

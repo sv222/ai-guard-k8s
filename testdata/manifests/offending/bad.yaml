@@ -1,0 +1,79 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vllm-bad
+  namespace: bad
+  labels:
+    app: vllm-bad
+spec:
+  selector:
+    matchLabels:
+      app: vllm-bad
+  template:
+    metadata:
+      labels:
+        app: vllm-bad
+    spec:
+      hostNetwork: true
+      hostPID: true
+      volumes:
+        - name: models
+          hostPath:
+            path: /srv/models
+      containers:
+        - name: server
+          image: vllm/vllm-openai:v0.6.0
+          args:
+            - --model=/models/llama.bin
+            - --trust-remote-code
+            - --debug
+            - s3://bucket/model
+          securityContext:
+            privileged: true
+            runAsUser: 0
+            seccompProfile:
+              type: Unconfined
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vllm-bad
+  namespace: bad
+spec:
+  type: NodePort
+  selector:
+    app: vllm-bad
+  ports:
+    - port: 8000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ollama-bad
+  namespace: bad
+spec:
+  selector:
+    matchLabels:
+      app: ollama-bad
+  template:
+    metadata:
+      labels:
+        app: ollama-bad
+    spec:
+      containers:
+        - name: ollama
+          image: ollama/ollama
+          env:
+            - name: OLLAMA_DEBUG
+              value: "true"
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-all
+  namespace: bad
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - {}

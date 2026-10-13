@@ -3,20 +3,27 @@ kind: CiliumNetworkPolicy
 metadata:
   name: aig-inference-egress
 spec:
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        k8s-app: kube-dns
+        k8s:io.kubernetes.pod.namespace: kube-system
+    toPorts:
+    - ports:
+      - port: "53"
+        protocol: ANY
+      rules:
+        dns:
+        - matchPattern: '*'
+  - toFQDNs:
+    - matchName: huggingface.co
+    - matchPattern: '*.huggingface.co'
+    - matchName: cdn-lfs.huggingface.co
+    - matchName: cdn-lfs.hf.co
+    - matchPattern: '*.hf.co'
+    - matchName: cas-bridge.xethub.hf.co
+    - matchName: cas-server.xethub.hf.co
+    - matchName: transfer.xethub.hf.co
   endpointSelector:
     matchLabels:
       ai.infra.guard/enabled: "true"
-  egress:
-    - toEndpoints:
-        - matchLabels:
-            k8s:io.kubernetes.pod.namespace: kube-system
-            k8s-app: kube-dns
-      toPorts:
-        - ports: [{ port: "53", protocol: ANY }]
-          rules:
-            dns:
-              - matchPattern: "*"
-    - toFQDNs:
-        - matchName: huggingface.co
-        - matchPattern: "*.huggingface.co"
-        - matchName: cdn-lfs.huggingface.co

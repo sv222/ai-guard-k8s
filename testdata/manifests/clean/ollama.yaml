@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: genai
+  namespace: llm
+  labels:
+    ai.infra.guard/enabled: "true"
+  annotations:
+    ai.infra.guard/gateway-auth: "true"
+spec:
+  serviceName: genai
+  selector:
+    matchLabels:
+      app: genai
+  template:
+    metadata:
+      labels:
+        app: genai
+        tier: inference
+    spec:
+      containers:
+        - name: ollama
+          image: ollama/ollama:0.3.0
+          securityContext:
+            runAsUser: 10001
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
+          resources:
+            requests: { cpu: "2", memory: 8Gi }
+            limits: { memory: 16Gi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: genai
+  namespace: llm
+spec:
+  type: LoadBalancer
+  selector:
+    app: genai
+  ports:
+    - port: 443
+      targetPort: 11434
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: genai-deny-ingress
+  namespace: llm
+spec:
+  podSelector:
+    matchExpressions:
+      - { key: tier, operator: In, values: [inference] }
+  policyTypes: [Ingress]

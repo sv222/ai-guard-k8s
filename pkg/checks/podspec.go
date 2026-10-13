@@ -11,6 +11,10 @@ import (
 
 var Registry = []CheckFunc{aig001, aig002, aig003, aig004, aig005, aig006, aig007, aig008}
 
+var authEnvNames = []string{"VLLM_API_KEY", "API_KEY", "OPENAI_API_KEY"}
+
+var unsafeModelExts = []string{".bin", ".pt", ".pth", ".pkl", ".pickle", ".ckpt"}
+
 func RunPodSpecChecks(w target.WorkloadTarget) []Finding {
 	var out []Finding
 	for _, c := range Registry {
@@ -19,42 +23,35 @@ func RunPodSpecChecks(w target.WorkloadTarget) []Finding {
 	return out
 }
 
-func (f Finding) on(w target.WorkloadTarget) Finding {
-	f.Kind, f.Namespace, f.Name = w.Kind, w.Namespace, w.Name
-	return f
-}
-
-// AIG-001: missing auth on inference engines (static heuristics).
 func aig001(w target.WorkloadTarget) []Finding {
+	if hasGatewayAuth(w) {
+		return nil
+	}
 	var out []Finding
 	for _, c := range w.Containers() {
 		if !detect.IsAIContainer(c) {
 			continue
 		}
-		img := strings.ToLower(c.Image)
-		switch {
-		case strings.Contains(img, "vllm"):
-			if !hasArg(c, "--api-key") && !hasEnv(c, "VLLM_API_KEY", "API_KEY") {
-				out = append(out, Finding{
-					ID: "AIG-001", Title: "vLLM without API key auth", Severity: "High",
-					Evidence: "no --api-key arg and no VLLM_API_KEY/API_KEY env",
-					Hint:     "start vllm with --api-key or front it with an authenticating gateway",
-				}.on(w))
-			}
-		default:
-			if !hasEnv(c, "API_KEY", "OPENAI_API_KEY", "VLLM_API_KEY") {
-				out = append(out, Finding{
-					ID: "AIG-001", Title: "Inference engine without engine/gateway auth evidence", Severity: "Medium",
-					Evidence: fmt.Sprintf("%s has no auth env (API_KEY/OPENAI_API_KEY) and engine has no native auth", c.Image),
-					Hint:     "front with an authenticating gateway (Envoy/Ingress + OAuth2) — engine lacks native auth",
-				}.on(w))
-			}
+		if hasAuthEvidence(c) {
+			continue
 		}
+		if strings.Contains(strings.ToLower(c.Image), "vllm") {
+			out = append(out, Finding{
+				ID: "AIG-001", Title: "vLLM without API key auth", Severity: "High",
+				Evidence: fmt.Sprintf("container %s: no --api-key arg and no VLLM_API_KEY/API_KEY env", c.Name),
+				Hint:     "start vllm with --api-key or front it with an authenticating gateway",
+			}.on(w))
+			continue
+		}
+		out = append(out, Finding{
+			ID: "AIG-001", Title: "Inference engine without engine/gateway auth evidence", Severity: "Medium",
+			Evidence: fmt.Sprintf("container %s (%s) has no auth env (API_KEY/OPENAI_API_KEY) and engine has no native auth", c.Name, c.Image),
+			Hint:     "front with an authenticating gateway (Envoy/Ingress + OAuth2), the engine lacks native auth",
+		}.on(w))
 	}
 	return out
 }
 
-// AIG-002: debug endpoints enabled.
 func aig002(w target.WorkloadTarget) []Finding {
 	var out []Finding
 	for _, c := range w.Containers() {
@@ -64,14 +61,14 @@ func aig002(w target.WorkloadTarget) []Finding {
 		if hasArg(c, "--debug") || hasArg(c, "--allow-http") {
 			out = append(out, Finding{
 				ID: "AIG-002", Title: "Debug/insecure endpoint enabled", Severity: "Medium",
-				Evidence: "args contain --debug or --allow-http",
+				Evidence: fmt.Sprintf("container %s: args contain --debug or --allow-http", c.Name),
 				Hint:     "remove debug flags in production",
 			}.on(w))
 		}
-		if strings.EqualFold(envValue(c, "OLLAMA_DEBUG"), "true") {
+		if v := strings.ToLower(envValue(c, "OLLAMA_DEBUG")); v == "true" || v == "1" {
 			out = append(out, Finding{
-				ID: "AIG-002", Title: "OLLAMA_DEBUG=1", Severity: "Medium",
-				Evidence: "env OLLAMA_DEBUG=true",
+				ID: "AIG-002", Title: "OLLAMA_DEBUG enabled", Severity: "Medium",
+				Evidence: fmt.Sprintf("container %s: env OLLAMA_DEBUG=%s", c.Name, envValue(c, "OLLAMA_DEBUG")),
 				Hint:     "unset OLLAMA_DEBUG in production",
 			}.on(w))
 		}
@@ -79,7 +76,6 @@ func aig002(w target.WorkloadTarget) []Finding {
 	return out
 }
 
-// AIG-003: hostNetwork / hostPID.
 func aig003(w target.WorkloadTarget) []Finding {
 	var out []Finding
 	if w.PodSpec.HostNetwork {
@@ -93,7 +89,6 @@ func aig003(w target.WorkloadTarget) []Finding {
 	return out
 }
 
-// AIG-004: hostPath volumes.
 func aig004(w target.WorkloadTarget) []Finding {
 	var out []Finding
 	for _, v := range w.PodSpec.Volumes {
@@ -106,43 +101,70 @@ func aig004(w target.WorkloadTarget) []Finding {
 	return out
 }
 
-// AIG-005: root / privilege escalation.
 func aig005(w target.WorkloadTarget) []Finding {
 	var out []Finding
-	sc := w.PodSpec.SecurityContext
-	if sc == nil || sc.RunAsNonRoot == nil || !*sc.RunAsNonRoot {
-		out = append(out, Finding{ID: "AIG-005", Title: "runAsNonRoot not enforced", Severity: "High",
-			Evidence: "pod securityContext.runAsNonRoot != true",
-			Hint:     "set runAsNonRoot: true (PSS Restricted)"}.on(w))
-	}
-	for _, c := range w.Containers() {
-		if c.SecurityContext != nil && c.SecurityContext.AllowPrivilegeEscalation != nil &&
-			*c.SecurityContext.AllowPrivilegeEscalation {
+	pod := w.PodSpec.SecurityContext
+	for _, c := range w.AllContainers() {
+		user := effectiveRunAsUser(pod, c.SecurityContext)
+		nonRoot := effectiveRunAsNonRoot(pod, c.SecurityContext)
+		switch {
+		case user != nil && *user == 0:
+			out = append(out, Finding{ID: "AIG-005", Title: "runs as root", Severity: "High",
+				Evidence: fmt.Sprintf("container %s: effective runAsUser: 0", c.Name),
+				Hint:     "set runAsUser to a non-zero UID and runAsNonRoot: true (PSS Restricted)"}.on(w))
+		case nonRoot != nil && *nonRoot, user != nil && *user != 0:
+		default:
+			out = append(out, Finding{ID: "AIG-005", Title: "runAsNonRoot not enforced", Severity: "High",
+				Evidence: fmt.Sprintf("container %s: neither runAsNonRoot: true nor a non-zero runAsUser is set (container or pod level)", c.Name),
+				Hint:     "set runAsNonRoot: true (PSS Restricted)"}.on(w))
+		}
+		if c.SecurityContext != nil && c.SecurityContext.Privileged != nil && *c.SecurityContext.Privileged {
+			out = append(out, Finding{ID: "AIG-005", Title: "privileged container", Severity: "High",
+				Evidence: fmt.Sprintf("container %s: securityContext.privileged: true", c.Name),
+				Hint:     "remove privileged: true and grant only the needed capabilities"}.on(w))
+		}
+		var ape *bool
+		if c.SecurityContext != nil {
+			ape = c.SecurityContext.AllowPrivilegeEscalation
+		}
+		switch {
+		case ape == nil:
+			out = append(out, Finding{ID: "AIG-005", Title: "allowPrivilegeEscalation not disabled", Severity: "High",
+				Evidence: fmt.Sprintf("container %s: allowPrivilegeEscalation unset (defaults to true)", c.Name),
+				Hint:     "set allowPrivilegeEscalation: false (PSS Restricted)"}.on(w))
+		case *ape:
 			out = append(out, Finding{ID: "AIG-005", Title: "allowPrivilegeEscalation", Severity: "High",
-				Evidence: fmt.Sprintf("container %s allows privilege escalation", c.Name),
+				Evidence: fmt.Sprintf("container %s: allowPrivilegeEscalation: true", c.Name),
 				Hint:     "set allowPrivilegeEscalation: false"}.on(w))
 		}
 	}
 	return out
 }
 
-// AIG-006: missing seccomp.
 func aig006(w target.WorkloadTarget) []Finding {
-	sc := w.PodSpec.SecurityContext
-	if sc == nil || sc.SeccompProfile == nil || sc.SeccompProfile.Type == "" {
-		return []Finding{Finding{ID: "AIG-006", Title: "no seccomp profile", Severity: "Medium",
-			Evidence: "pod securityContext.seccompProfile unset",
-			Hint:     "set seccompProfile.type: RuntimeDefault"}.on(w)}
+	var out []Finding
+	pod := w.PodSpec.SecurityContext
+	for _, c := range w.AllContainers() {
+		p := effectiveSeccomp(pod, c.SecurityContext)
+		switch {
+		case p == nil:
+			out = append(out, Finding{ID: "AIG-006", Title: "no seccomp profile", Severity: "Medium",
+				Evidence: fmt.Sprintf("container %s: seccompProfile unset (container and pod level)", c.Name),
+				Hint:     "set seccompProfile.type: RuntimeDefault"}.on(w))
+		case p.Type == corev1.SeccompProfileTypeUnconfined:
+			out = append(out, Finding{ID: "AIG-006", Title: "seccomp profile Unconfined", Severity: "Medium",
+				Evidence: fmt.Sprintf("container %s: effective seccompProfile.type: Unconfined", c.Name),
+				Hint:     "set seccompProfile.type: RuntimeDefault"}.on(w))
+		}
 	}
-	return nil
+	return out
 }
 
-// AIG-007: missing resources.
 func aig007(w target.WorkloadTarget) []Finding {
 	var out []Finding
-	for _, c := range w.Containers() {
+	for _, c := range w.AllContainers() {
 		r := c.Resources
-		if r.Limits == nil || r.Requests == nil {
+		if len(r.Limits) == 0 || len(r.Requests) == 0 {
 			out = append(out, Finding{ID: "AIG-007", Title: "missing resource requests/limits", Severity: "Low",
 				Evidence: fmt.Sprintf("container %s lacks requests or limits", c.Name),
 				Hint:     "set both requests and limits (GPU workloads starve nodes)"}.on(w))
@@ -151,33 +173,28 @@ func aig007(w target.WorkloadTarget) []Finding {
 	return out
 }
 
-// AIG-008: unsafe model execution (static only).
 func aig008(w target.WorkloadTarget) []Finding {
 	var out []Finding
-	unsafeExts := []string{".bin", ".pt", ".pth", ".pkl", ".ckpt"}
 	for _, c := range w.Containers() {
 		if !detect.IsAIContainer(c) {
 			continue
 		}
 		if hasArg(c, "--trust-remote-code") {
 			out = append(out, Finding{ID: "AIG-008", Title: "--trust-remote-code enabled", Severity: "High",
-				Evidence: "args include --trust-remote-code (arbitrary Python exec from model repo)",
+				Evidence: fmt.Sprintf("container %s: args include --trust-remote-code (arbitrary Python exec from model repo)", c.Name),
 				Hint:     "remove --trust-remote-code; vet model code, prefer SafeTensors"}.on(w))
 		}
-	ModelLoop:
-		for _, a := range c.Args {
-			la := strings.ToLower(a)
-			for _, ext := range unsafeExts {
-				if strings.Contains(la, ext) {
-					out = append(out, Finding{ID: "AIG-008", Title: "non-SafeTensors model reference", Severity: "High",
-						Evidence: fmt.Sprintf("arg %q references %s (pickle-deserialization risk)", a, ext),
-						Hint:     "prefer .safetensors formats"}.on(w))
-					continue ModelLoop
-				}
+		for _, v := range modelValues(c) {
+			if ext := unsafeExt(v.value); ext != "" {
+				out = append(out, Finding{ID: "AIG-008", Title: "non-SafeTensors model reference", Severity: "High",
+					Evidence: fmt.Sprintf("container %s: %s %q references %s (pickle-deserialization risk)", c.Name, v.kind, v.raw, ext),
+					Hint:     "prefer .safetensors formats"}.on(w))
+				continue
 			}
-			if strings.HasPrefix(la, "s3://") || strings.HasPrefix(la, "gs://") {
+			lv := strings.ToLower(v.value)
+			if strings.HasPrefix(lv, "s3://") || strings.HasPrefix(lv, "gs://") {
 				out = append(out, Finding{ID: "AIG-008", Title: "unverified object-storage model source", Severity: "Medium",
-					Evidence: fmt.Sprintf("arg %q loads model from unverified object storage", a),
+					Evidence: fmt.Sprintf("container %s: %s %q loads model from unverified object storage", c.Name, v.kind, v.raw),
 					Hint:     "pin model provenance: digest-verified registry or signed artifacts"}.on(w))
 			}
 		}
@@ -185,8 +202,84 @@ func aig008(w target.WorkloadTarget) []Finding {
 	return out
 }
 
+type modelValue struct {
+	kind, raw, value string
+}
+
+func commandLine(c corev1.Container) []string {
+	out := make([]string, 0, len(c.Command)+len(c.Args))
+	out = append(out, c.Command...)
+	return append(out, c.Args...)
+}
+
+func modelValues(c corev1.Container) []modelValue {
+	var out []modelValue
+	for _, a := range commandLine(c) {
+		out = append(out, modelValue{kind: "arg", raw: a, value: argValue(a)})
+	}
+	for _, e := range c.Env {
+		if e.Value != "" {
+			out = append(out, modelValue{kind: "env " + e.Name, raw: e.Value, value: e.Value})
+		}
+	}
+	return out
+}
+
+func argValue(a string) string {
+	if strings.HasPrefix(a, "-") {
+		if i := strings.Index(a, "="); i >= 0 {
+			return a[i+1:]
+		}
+		return ""
+	}
+	return a
+}
+
+func unsafeExt(v string) string {
+	if i := strings.IndexAny(v, "?#"); i >= 0 {
+		v = v[:i]
+	}
+	v = strings.ToLower(v)
+	for _, ext := range unsafeModelExts {
+		if strings.HasSuffix(v, ext) {
+			return ext
+		}
+	}
+	return ""
+}
+
+func effectiveRunAsUser(pod *corev1.PodSecurityContext, c *corev1.SecurityContext) *int64 {
+	if c != nil && c.RunAsUser != nil {
+		return c.RunAsUser
+	}
+	if pod != nil {
+		return pod.RunAsUser
+	}
+	return nil
+}
+
+func effectiveRunAsNonRoot(pod *corev1.PodSecurityContext, c *corev1.SecurityContext) *bool {
+	if c != nil && c.RunAsNonRoot != nil {
+		return c.RunAsNonRoot
+	}
+	if pod != nil {
+		return pod.RunAsNonRoot
+	}
+	return nil
+}
+
+func effectiveSeccomp(pod *corev1.PodSecurityContext, c *corev1.SecurityContext) *corev1.SeccompProfile {
+	if c != nil && c.SeccompProfile != nil && c.SeccompProfile.Type != "" {
+		return c.SeccompProfile
+	}
+	if pod != nil && pod.SeccompProfile != nil && pod.SeccompProfile.Type != "" {
+		return pod.SeccompProfile
+	}
+	return nil
+}
+
 func hasArg(c corev1.Container, arg string) bool {
-	for _, a := range c.Args {
+	for _, a := range commandLine(c) {
 		if a == arg || strings.HasPrefix(a, arg+"=") {
 			return true
 		}
@@ -197,12 +290,16 @@ func hasArg(c corev1.Container, arg string) bool {
 func hasEnv(c corev1.Container, names ...string) bool {
 	for _, e := range c.Env {
 		for _, n := range names {
-			if e.Name == n && e.Value != "" {
+			if e.Name == n && (e.Value != "" || e.ValueFrom != nil) {
 				return true
 			}
 		}
 	}
 	return false
+}
+
+func hasAuthEvidence(c corev1.Container) bool {
+	return hasArg(c, "--api-key") || hasEnv(c, authEnvNames...)
 }
 
 func envValue(c corev1.Container, name string) string {
