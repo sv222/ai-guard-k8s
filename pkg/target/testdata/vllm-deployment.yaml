@@ -1,0 +1,16 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vllm-openai
+  namespace: llm
+  labels: { app: vllm }
+spec:
+  selector: { matchLabels: { app: vllm } }
+  template:
+    metadata: { labels: { app: vllm } }
+    spec:
+      containers:
+        - name: server
+          image: vllm/vllm-openai:v0.6.0
+          args: ["--model", "mistralai/Mistral-7B-Instruct-v0.2"]
+          ports: [{ containerPort: 8000 }]
