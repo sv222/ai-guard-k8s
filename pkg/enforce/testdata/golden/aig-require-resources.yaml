@@ -1,0 +1,27 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: aig-require-resources
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+- name: require-resources
+  match:
+    any:
+    - resources:
+        kinds: [Pod]
+        selector:
+          matchLabels:
+            ai.infra.guard/enabled: "true"
+  validate:
+    message: "AI inference containers must set requests and limits"
+    pattern:
+      spec:
+        containers:
+          - resources:
+              requests:
+                memory: "?*"
+                cpu: "?*"
+              limits:
+                memory: "?*"
