@@ -268,15 +268,24 @@ spec:
 }
 
 func TestFromClientsetCronJob(t *testing.T) {
-	cs := fake.NewSimpleClientset(&batchv1.CronJob{
-		ObjectMeta: metav1.ObjectMeta{Name: "ollama-batch", Namespace: "llm"},
-		Spec: batchv1.CronJobSpec{JobTemplate: batchv1.JobTemplateSpec{Spec: batchv1.JobSpec{
-			Template: corev1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"app": "ollama"}},
-				Spec:       corev1.PodSpec{Containers: []corev1.Container{{Name: "c", Image: "ollama/ollama"}}},
-			},
-		}}},
-	})
+	yes := true
+	podSpec := corev1.PodSpec{Containers: []corev1.Container{{Name: "c", Image: "ollama/ollama"}}}
+	cs := fake.NewSimpleClientset(
+		&batchv1.CronJob{
+			ObjectMeta: metav1.ObjectMeta{Name: "ollama-batch", Namespace: "llm"},
+			Spec: batchv1.CronJobSpec{JobTemplate: batchv1.JobTemplateSpec{Spec: batchv1.JobSpec{
+				Template: corev1.PodTemplateSpec{
+					ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"app": "ollama"}},
+					Spec:       podSpec,
+				},
+			}}},
+		},
+		&batchv1.Job{
+			ObjectMeta: metav1.ObjectMeta{Name: "ollama-batch-29865441", Namespace: "llm",
+				OwnerReferences: []metav1.OwnerReference{{Kind: "CronJob", Name: "ollama-batch", Controller: &yes}}},
+			Spec: batchv1.JobSpec{Template: corev1.PodTemplateSpec{Spec: podSpec}},
+		},
+	)
 	ds, err := FromClientset(context.Background(), cs, "")
 	if err != nil {
 		t.Fatal(err)

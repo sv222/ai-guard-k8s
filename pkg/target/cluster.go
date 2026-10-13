@@ -27,6 +27,15 @@ func IsManagedPod(meta metav1.ObjectMeta) bool {
 	return false
 }
 
+func isControlledBy(meta metav1.ObjectMeta, kind string) bool {
+	for _, ref := range meta.OwnerReferences {
+		if ref.Controller != nil && *ref.Controller && ref.Kind == kind {
+			return true
+		}
+	}
+	return false
+}
+
 func FromCluster(ctx context.Context, kubeconfig, namespace string) (DirScan, error) {
 	rules := clientcmd.NewDefaultClientConfigLoadingRules()
 	if kubeconfig != "" {
@@ -74,6 +83,9 @@ func FromClientset(ctx context.Context, cs kubernetes.Interface, namespace strin
 		return out, err
 	}
 	for _, o := range jobs.Items {
+		if isControlledBy(o.ObjectMeta, "CronJob") {
+			continue
+		}
 		out.Targets = append(out.Targets, fromTemplate("Job", o.ObjectMeta, o.Spec.Template, "cluster"))
 	}
 	crons, err := cs.BatchV1().CronJobs(namespace).List(ctx, opt)
