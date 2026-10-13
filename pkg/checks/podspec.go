@@ -207,9 +207,22 @@ type modelValue struct {
 }
 
 func commandLine(c corev1.Container) []string {
-	out := make([]string, 0, len(c.Command)+len(c.Args))
-	out = append(out, c.Command...)
-	return append(out, c.Args...)
+	raw := make([]string, 0, len(c.Command)+len(c.Args))
+	raw = append(raw, c.Command...)
+	raw = append(raw, c.Args...)
+	out := make([]string, 0, len(raw))
+	for _, a := range raw {
+		if !strings.ContainsAny(a, " \t\r\n") {
+			out = append(out, a)
+			continue
+		}
+		for _, f := range strings.Fields(a) {
+			if f = strings.Trim(f, "\"'"); f != "" {
+				out = append(out, f)
+			}
+		}
+	}
+	return out
 }
 
 func modelValues(c corev1.Container) []modelValue {

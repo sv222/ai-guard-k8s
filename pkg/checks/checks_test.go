@@ -103,6 +103,12 @@ func TestPodSpecChecks(t *testing.T) {
 			c.Args = nil
 			c.Env = []corev1.EnvVar{{Name: "VLLM_API_KEY", ValueFrom: &corev1.EnvVarSource{SecretKeyRef: &corev1.SecretKeySelector{}}}}
 		}), "AIG-001", 0},
+		{"001 vllm key in shell string", container(func(c *corev1.Container) {
+			c.Command, c.Args = []string{"/bin/sh", "-c"}, []string{"exec vllm serve m --api-key \"$KEY\""}
+		}), "AIG-001", 0},
+		{"001 vllm shell string without key", container(func(c *corev1.Container) {
+			c.Command, c.Args = []string{"/bin/sh", "-c"}, []string{"exec vllm serve m"}
+		}), "AIG-001", 1},
 		{"001 ollama no auth", ollama(), "AIG-001", 1},
 		{"001 ollama api key env", ollama(corev1.EnvVar{Name: "API_KEY", Value: "x"}), "AIG-001", 0},
 		{"001 gateway annotation", func(w *target.WorkloadTarget) {
@@ -205,6 +211,12 @@ func TestPodSpecChecks(t *testing.T) {
 		{"008 ptx not pt", container(func(c *corev1.Container) { c.Args = append(c.Args, "--file=/m/kernel.ptx") }), "AIG-008", 0},
 		{"008 s3 source", container(func(c *corev1.Container) { c.Args = append(c.Args, "--model", "s3://b/m") }), "AIG-008", 1},
 		{"008 gs source", container(func(c *corev1.Container) { c.Args = append(c.Args, "--model=gs://b/m") }), "AIG-008", 1},
+		{"008 shell wrapped trust-remote-code", container(func(c *corev1.Container) {
+			c.Command, c.Args = []string{"/bin/sh", "-c"}, []string{"exec vllm serve m --api-key $K --trust-remote-code"}
+		}), "AIG-008", 1},
+		{"008 shell wrapped bin file", container(func(c *corev1.Container) {
+			c.Command, c.Args = []string{"sh", "-c"}, []string{"vllm serve '/data/model.bin' --api-key $K"}
+		}), "AIG-008", 1},
 		{"008 non-ai image ignored", container(func(c *corev1.Container) {
 			c.Image = "nginx"
 			c.Args = []string{"--trust-remote-code", "/m/a.bin"}
