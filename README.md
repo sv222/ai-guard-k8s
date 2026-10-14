@@ -81,7 +81,7 @@ A workload counts as AI inference if its name or an image contains `vllm`, `olla
 
 | ID | Risk | Severity | How it is detected | Fix | Maps to |
 |---|---|---|---|---|---|
-| AIG-001 | No auth on the engine | High (vLLM), Medium (others) | No `--api-key` arg, no `VLLM_API_KEY`, `API_KEY` or `OPENAI_API_KEY` env, and no `envFrom` Secret named like api-key, api-token, auth or bearer (names with hf, aws, s3, registry or tls do not count) | Set an API key, or annotate `ai.infra.guard/gateway-auth: "true"` if a gateway authenticates | - |
+| AIG-001 | No auth on the engine | High (vLLM), Medium (others) | No `--api-key` arg, no env var the engine reads (vLLM: `VLLM_API_KEY`; Text Embeddings Inference: `API_KEY`; llama.cpp: `LLAMA_API_KEY`; LocalAI: `LOCALAI_API_KEY` or `API_KEY`; other engines: none), and no `envFrom` Secret named like api-key, api-token, auth or bearer (names with hf, aws, s3, registry or tls do not count) | Set an API key, or annotate `ai.infra.guard/gateway-auth: "true"` if a gateway authenticates | - |
 | AIG-002 | Debug or insecure endpoint | Medium | `--debug`, `--allow-http`, or `OLLAMA_DEBUG` set to `true` or `1` | Remove it | - |
 | AIG-003 | Host namespaces | High | `hostNetwork` or `hostPID` is true | Set both to false | PSS Baseline: Host Namespaces (`hostIPC` is not checked) |
 | AIG-004 | `hostPath` volume | High | Any `hostPath` volume | Use a PVC or `emptyDir` | PSS Baseline: HostPath Volumes |
@@ -233,7 +233,6 @@ Known gaps from this run:
 
 - Custom resources are not read. `RayCluster`, `RayService`, KServe `InferenceService` and `ClusterServingRuntime`, and KubeAI `Model` render no Deployment, so nothing is scanned. Only generated Deployments are seen.
 - Routers and gateways in front of engines (the production-stack router, the KubeAI proxy) are not recognized as AI workloads, so their exposure is not reported.
-- Engines with no native auth (Ollama, TGI, Triton) still count as authenticated if the container has an `API_KEY` or `OPENAI_API_KEY` env.
 - Values are chart defaults plus the small variants in the corpus. Real deployments set other values.
 
 ### Known limitations

@@ -11,7 +11,16 @@ import (
 
 var Registry = []CheckFunc{aig001, aig002, aig003, aig004, aig005, aig006, aig007, aig008}
 
-var authEnvNames = []string{"VLLM_API_KEY", "API_KEY", "OPENAI_API_KEY"}
+var engineAuthEnv = map[string][]string{
+	"vllm":                      {"VLLM_API_KEY"},
+	"text-embeddings-inference": {"API_KEY"},
+	"llama.cpp":                 {"LLAMA_API_KEY"},
+	"llama-cpp":                 {"LLAMA_API_KEY"},
+	"local-ai":                  {"LOCALAI_API_KEY", "API_KEY"},
+	"localai":                   {"LOCALAI_API_KEY", "API_KEY"},
+}
+
+var unknownEngineAuthEnv = []string{"API_KEY", "VLLM_API_KEY", "LLAMA_API_KEY", "LOCALAI_API_KEY"}
 
 var authSecretHints = []string{"api-key", "apikey", "api_key", "api-token", "apitoken", "api_token", "auth", "bearer"}
 
@@ -42,14 +51,14 @@ func aig001(w target.WorkloadTarget) []Finding {
 		if detect.Engine(c) == "vllm" {
 			out = append(out, Finding{
 				ID: "AIG-001", Title: "vLLM without API key auth", Severity: "High",
-				Evidence: fmt.Sprintf("container %s: no --api-key arg and no VLLM_API_KEY/API_KEY env", c.Name),
+				Evidence: fmt.Sprintf("container %s: no --api-key arg and no VLLM_API_KEY env", c.Name),
 				Hint:     "start vllm with --api-key or front it with an authenticating gateway",
 			}.on(w))
 			continue
 		}
 		out = append(out, Finding{
 			ID: "AIG-001", Title: "Inference engine without engine/gateway auth evidence", Severity: "Medium",
-			Evidence: fmt.Sprintf("container %s (%s) has no auth env (API_KEY/OPENAI_API_KEY) and engine has no native auth", c.Name, c.Image),
+			Evidence: fmt.Sprintf("container %s (%s) has no auth evidence and engine has no native auth", c.Name, c.Image),
 			Hint:     "front with an authenticating gateway (Envoy/Ingress + OAuth2), the engine lacks native auth",
 		}.on(w))
 	}
@@ -308,8 +317,15 @@ func hasEnv(c corev1.Container, names ...string) bool {
 	return false
 }
 
+func authEnvNames(c corev1.Container) []string {
+	if e := detect.Engine(c); e != "" {
+		return engineAuthEnv[e]
+	}
+	return unknownEngineAuthEnv
+}
+
 func hasAuthEvidence(c corev1.Container) bool {
-	return hasArg(c, "--api-key") || hasEnv(c, authEnvNames...) || hasAuthEnvFrom(c)
+	return hasArg(c, "--api-key") || hasEnv(c, authEnvNames(c)...) || hasAuthEnvFrom(c)
 }
 
 func hasAuthEnvFrom(c corev1.Container) bool {

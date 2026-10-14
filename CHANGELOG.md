@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- AIG-001 and AIG-010 read auth env names per engine. vLLM reads only `--api-key` and `VLLM_API_KEY`, so `API_KEY` and `OPENAI_API_KEY` no longer hide a missing key on vLLM. Ollama, TGI, Triton and other engines without native auth get no credit from an env var. Text Embeddings Inference (`API_KEY`), llama.cpp (`LLAMA_API_KEY`) and LocalAI (`LOCALAI_API_KEY`, `API_KEY`) keep their own names.
 - AIG-009 judges ingress only. An ingress rule with `ports` but no `from`, or with an empty `namespaceSelector`, no longer counts as isolation, and an egress-only policy no longer hides the finding while ingress stays open.
 - `envFrom` Secret names count as auth evidence for AIG-001 only when they contain api-key, api-token, auth or bearer. Names such as `hf-token`, `aws-credentials` and `registry-auth` no longer hide a missing API key. Names with only `key` or `token` (for example `vllm-key`) no longer count.
 - Workloads you opt in with the label, the annotation or `--workload-selector` now get the engine checks (AIG-001, AIG-002, AIG-008) when the pod has one container and the image is not recognized. Before, only AIG-003 to AIG-007, AIG-009 and AIG-010 ran on them.

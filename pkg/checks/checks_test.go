@@ -142,7 +142,32 @@ func TestPodSpecChecks(t *testing.T) {
 			c.EnvFrom = []corev1.EnvFromSource{{ConfigMapRef: &corev1.ConfigMapEnvSource{LocalObjectReference: corev1.LocalObjectReference{Name: "api-key"}}}}
 		}), "AIG-001", 1},
 		{"001 ollama no auth", ollama(), "AIG-001", 1},
-		{"001 ollama api key env", ollama(corev1.EnvVar{Name: "API_KEY", Value: "x"}), "AIG-001", 0},
+		{"001 ollama api key env is not auth", ollama(corev1.EnvVar{Name: "API_KEY", Value: "x"}), "AIG-001", 1},
+		{"001 ollama openai key env is not auth", ollama(corev1.EnvVar{Name: "OPENAI_API_KEY", Value: "x"}), "AIG-001", 1},
+		{"001 vllm API_KEY env is not read by vllm", container(func(c *corev1.Container) {
+			c.Args = nil
+			c.Env = []corev1.EnvVar{{Name: "API_KEY", Value: "x"}}
+		}), "AIG-001", 1},
+		{"001 vllm OPENAI_API_KEY env is not read by vllm", container(func(c *corev1.Container) {
+			c.Args = nil
+			c.Env = []corev1.EnvVar{{Name: "OPENAI_API_KEY", Value: "x"}}
+		}), "AIG-001", 1},
+		{"001 tei API_KEY env", container(func(c *corev1.Container) {
+			c.Image, c.Args = "ghcr.io/huggingface/text-embeddings-inference:1.8", nil
+			c.Env = []corev1.EnvVar{{Name: "API_KEY", Value: "x"}}
+		}), "AIG-001", 0},
+		{"001 llama.cpp LLAMA_API_KEY env", container(func(c *corev1.Container) {
+			c.Image, c.Args = "ghcr.io/ggml-org/llama.cpp:server", nil
+			c.Env = []corev1.EnvVar{{Name: "LLAMA_API_KEY", Value: "x"}}
+		}), "AIG-001", 0},
+		{"001 localai API_KEY env", container(func(c *corev1.Container) {
+			c.Image, c.Args = "localai/localai:latest", nil
+			c.Env = []corev1.EnvVar{{Name: "API_KEY", Value: "x"}}
+		}), "AIG-001", 0},
+		{"001 tgi API_KEY env is not auth", container(func(c *corev1.Container) {
+			c.Image, c.Args = "ghcr.io/huggingface/text-generation-inference:3", nil
+			c.Env = []corev1.EnvVar{{Name: "API_KEY", Value: "x"}}
+		}), "AIG-001", 1},
 		{"001 gateway annotation", func(w *target.WorkloadTarget) {
 			w.Annotations = map[string]string{GatewayAuthKey: "true"}
 			w.PodSpec.Containers[0].Args = nil
