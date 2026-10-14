@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- AIG-009 judges ingress only. An ingress rule with `ports` but no `from`, or with an empty `namespaceSelector`, no longer counts as isolation, and an egress-only policy no longer hides the finding while ingress stays open.
 - `envFrom` Secret names count as auth evidence for AIG-001 only when they contain api-key, api-token, auth or bearer. Names such as `hf-token`, `aws-credentials` and `registry-auth` no longer hide a missing API key. Names with only `key` or `token` (for example `vllm-key`) no longer count.
 - Workloads you opt in with the label, the annotation or `--workload-selector` now get the engine checks (AIG-001, AIG-002, AIG-008) when the pod has one container and the image is not recognized. Before, only AIG-003 to AIG-007, AIG-009 and AIG-010 ran on them.
 - Engines started by `command` or `args` are detected when the image name does not match, for example `vllm serve`, `python -m vllm.entrypoints...` or `exec ollama serve`. A vLLM server in a custom image got no AIG-001, AIG-002 or AIG-008 checks.

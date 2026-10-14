@@ -38,6 +38,8 @@ func TestAIG009(t *testing.T) {
 	cidrAll := []netv1.NetworkPolicyPeer{{IPBlock: &netv1.IPBlock{CIDR: "0.0.0.0/0"}}}
 	cidrAllExcept := []netv1.NetworkPolicyPeer{{IPBlock: &netv1.IPBlock{CIDR: "0.0.0.0/0", Except: []string{"10.0.0.0/8"}}}}
 	nsPeer := []netv1.NetworkPolicyPeer{{NamespaceSelector: &metav1.LabelSelector{}}}
+	nsLabeled := []netv1.NetworkPolicyPeer{{NamespaceSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"team": "llm"}}}}
+	podPeer := []netv1.NetworkPolicyPeer{{PodSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "gw"}}}}
 	exprIn := metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{
 		{Key: "app", Operator: metav1.LabelSelectorOpIn, Values: []string{"vllm", "other"}}}}
 	exprNotIn := metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{
@@ -68,7 +70,7 @@ func TestAIG009(t *testing.T) {
 		{"expression In selects", map[string]string{"app": "vllm"}, []target.NetworkPolicyEntry{pol(exprIn, ingressOnly, nil, nil)}, false},
 		{"expression NotIn excludes", map[string]string{"app": "vllm"}, []target.NetworkPolicyEntry{pol(exprNotIn, ingressOnly, nil, nil)}, true},
 		{"expression NotIn selects other", map[string]string{"app": "x"}, []target.NetworkPolicyEntry{pol(exprNotIn, ingressOnly, nil, nil)}, false},
-		{"expression Exists", map[string]string{"app": "vllm"}, []target.NetworkPolicyEntry{pol(exprExists, egressOnly, nil, nil)}, false},
+		{"expression Exists", map[string]string{"app": "vllm"}, []target.NetworkPolicyEntry{pol(exprExists, ingressOnly, nil, nil)}, false},
 		{"expression DoesNotExist no match", map[string]string{"app": "vllm"}, []target.NetworkPolicyEntry{pol(exprDoesNotExist, egressOnly, nil, nil)}, true},
 		{"invalid selector never selects", map[string]string{"app": "vllm"}, []target.NetworkPolicyEntry{pol(badOp, both, nil, nil)}, true},
 		{"labels and expressions both required", map[string]string{"app": "vllm", "tier": "x"}, []target.NetworkPolicyEntry{pol(mixed, ingressOnly, nil, nil)}, false},
@@ -76,21 +78,35 @@ func TestAIG009(t *testing.T) {
 		{"empty policyTypes defaults to ingress", map[string]string{"app": "vllm"}, []target.NetworkPolicyEntry{pol(matchApp("vllm"), nil, nil, nil)}, false},
 		{"empty ingress rule is allow-all", map[string]string{"app": "vllm"}, []target.NetworkPolicyEntry{pol(matchApp("vllm"), ingressOnly, allowAllIngress, nil)}, true},
 		{"empty egress rule is allow-all", map[string]string{"app": "vllm"}, []target.NetworkPolicyEntry{pol(matchApp("vllm"), egressOnly, nil, allowAllEgress)}, true},
-		{"allow-all ingress but restricted egress", map[string]string{"app": "vllm"}, []target.NetworkPolicyEntry{pol(matchApp("vllm"), both, allowAllIngress, nil)}, false},
+		{"allow-all ingress but restricted egress", map[string]string{"app": "vllm"}, []target.NetworkPolicyEntry{pol(matchApp("vllm"), both, allowAllIngress, nil)}, true},
 		{"allow-all both directions", map[string]string{"app": "vllm"}, []target.NetworkPolicyEntry{pol(matchApp("vllm"), both, allowAllIngress, allowAllEgress)}, true},
 		{"cidr 0.0.0.0/0 ingress is allow-all", map[string]string{"app": "vllm"}, []target.NetworkPolicyEntry{
 			pol(matchApp("vllm"), ingressOnly, []netv1.NetworkPolicyIngressRule{{From: cidrAll}}, nil)}, true},
 		{"cidr with except is restricting", map[string]string{"app": "vllm"}, []target.NetworkPolicyEntry{
 			pol(matchApp("vllm"), ingressOnly, []netv1.NetworkPolicyIngressRule{{From: cidrAllExcept}}, nil)}, false},
-		{"open peers but ports restrict", map[string]string{"app": "vllm"}, []target.NetworkPolicyEntry{
-			pol(matchApp("vllm"), ingressOnly, []netv1.NetworkPolicyIngressRule{{Ports: []netv1.NetworkPolicyPort{{Port: &port}}}}, nil)}, false},
-		{"namespace peer restricts", map[string]string{"app": "vllm"}, []target.NetworkPolicyEntry{
-			pol(matchApp("vllm"), ingressOnly, []netv1.NetworkPolicyIngressRule{{From: nsPeer}}, nil)}, false},
+		{"ports without from stay open to every source", map[string]string{"app": "vllm"}, []target.NetworkPolicyEntry{
+			pol(matchApp("vllm"), ingressOnly, []netv1.NetworkPolicyIngressRule{{Ports: []netv1.NetworkPolicyPort{{Port: &port}}}}, nil)}, true},
+		{"empty namespaceSelector matches every namespace", map[string]string{"app": "vllm"}, []target.NetworkPolicyEntry{
+			pol(matchApp("vllm"), ingressOnly, []netv1.NetworkPolicyIngressRule{{From: nsPeer}}, nil)}, true},
+		{"all-namespaces peer with ports is open", map[string]string{"app": "vllm"}, []target.NetworkPolicyEntry{
+			pol(matchApp("vllm"), ingressOnly, []netv1.NetworkPolicyIngressRule{{From: nsPeer, Ports: []netv1.NetworkPolicyPort{{Port: &port}}}}, nil)}, true},
+		{"labeled namespace peer restricts", map[string]string{"app": "vllm"}, []target.NetworkPolicyEntry{
+			pol(matchApp("vllm"), ingressOnly, []netv1.NetworkPolicyIngressRule{{From: nsLabeled}}, nil)}, false},
+		{"pod selector in same namespace restricts", map[string]string{"app": "vllm"}, []target.NetworkPolicyEntry{
+			pol(matchApp("vllm"), ingressOnly, []netv1.NetworkPolicyIngressRule{{From: podPeer}}, nil)}, false},
+		{"empty peer is open", map[string]string{"app": "vllm"}, []target.NetworkPolicyEntry{
+			pol(matchApp("vllm"), ingressOnly, []netv1.NetworkPolicyIngressRule{{From: []netv1.NetworkPolicyPeer{{}}}}, nil)}, true},
+		{"cidr ::/0 is open", map[string]string{"app": "vllm"}, []target.NetworkPolicyEntry{
+			pol(matchApp("vllm"), ingressOnly, []netv1.NetworkPolicyIngressRule{{From: []netv1.NetworkPolicyPeer{{IPBlock: &netv1.IPBlock{CIDR: "::/0"}}}}}, nil)}, true},
 		{"deny-all plus separate allow-all stays open", map[string]string{"app": "vllm"}, []target.NetworkPolicyEntry{
 			pol(matchApp("vllm"), ingressOnly, nil, nil),
 			pol(matchApp("vllm"), ingressOnly, allowAllIngress, nil),
 		}, true},
-		{"egress policy deny-all", map[string]string{"app": "vllm"}, []target.NetworkPolicyEntry{pol(matchApp("vllm"), egressOnly, nil, nil)}, false},
+		{"egress-only deny-all leaves ingress open", map[string]string{"app": "vllm"}, []target.NetworkPolicyEntry{pol(matchApp("vllm"), egressOnly, nil, nil)}, true},
+		{"egress-only plus ingress deny-all", map[string]string{"app": "vllm"}, []target.NetworkPolicyEntry{
+			pol(matchApp("vllm"), egressOnly, nil, nil),
+			pol(matchApp("vllm"), ingressOnly, nil, nil),
+		}, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
