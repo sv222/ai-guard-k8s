@@ -79,6 +79,26 @@ func FromClientset(ctx context.Context, cs kubernetes.Interface, namespace strin
 	for _, o := range dss.Items {
 		out.Targets = append(out.Targets, fromTemplate("DaemonSet", o.ObjectMeta, o.Spec.Template, "cluster"))
 	}
+	rss, err := cs.AppsV1().ReplicaSets(namespace).List(ctx, opt)
+	if err != nil {
+		return out, err
+	}
+	for _, o := range rss.Items {
+		if isControlledBy(o.ObjectMeta, "Deployment") || (o.Spec.Replicas != nil && *o.Spec.Replicas == 0) {
+			continue
+		}
+		out.Targets = append(out.Targets, fromTemplate("ReplicaSet", o.ObjectMeta, o.Spec.Template, "cluster"))
+	}
+	rcs, err := cs.CoreV1().ReplicationControllers(namespace).List(ctx, opt)
+	if err != nil {
+		return out, err
+	}
+	for _, o := range rcs.Items {
+		if o.Spec.Template == nil || (o.Spec.Replicas != nil && *o.Spec.Replicas == 0) {
+			continue
+		}
+		out.Targets = append(out.Targets, fromTemplate("ReplicationController", o.ObjectMeta, *o.Spec.Template, "cluster"))
+	}
 	jobs, err := cs.BatchV1().Jobs(namespace).List(ctx, opt)
 	if err != nil {
 		return out, err

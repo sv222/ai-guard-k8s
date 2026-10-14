@@ -233,7 +233,7 @@ Nearly all false positives (53 findings) came from Helm test pods that were matc
 
 Known gaps from this run:
 
-- Custom resources are not read. `RayCluster`, `RayService`, KServe `InferenceService` and `ClusterServingRuntime`, and KubeAI `Model` render no Deployment, so nothing is scanned. Only generated Deployments are seen.
+- Custom resources are not read. Argo Rollouts are the exception: `kind: Rollout` (`argoproj.io`) is read in manifests, and in a cluster the ReplicaSets a Rollout creates are scanned (reported as `ReplicaSet`, not `Rollout`). `RayCluster`, `RayService`, KServe `InferenceService` and `ClusterServingRuntime`, and KubeAI `Model` render no Deployment, so nothing is scanned. Only generated Deployments are seen.
 - Routers and gateways in front of engines (the production-stack router, the KubeAI proxy) are not recognized as AI workloads, so their exposure is not reported.
 - Values are chart defaults plus the small variants in the corpus. Real deployments set other values.
 
@@ -243,7 +243,7 @@ Known gaps from this run:
 - Helm templates and Kustomize overlays are not rendered. Render them first.
 - Auth detection is evidence-based. It looks for `--api-key` and known env names. It cannot prove auth works. vLLM `--api-key` does not cover every endpoint, so a pass on AIG-001 is not proof of safety.
 - Engines are found by image or workload name. A custom image may need the label or `--workload-selector`.
-- Pods owned by a Deployment, StatefulSet, DaemonSet, Job or ReplicaSet are not scanned alone. Their owner is.
+- Pods owned by a Deployment, ReplicaSet, ReplicationController, StatefulSet, DaemonSet, Job or CronJob are not scanned alone. Their owner is. ReplicaSets owned by a Deployment, and ReplicaSets or ReplicationControllers scaled to 0, are skipped in cluster scans. A Pod owned by another custom controller is scanned as a Pod.
 
 ## Roadmap
 

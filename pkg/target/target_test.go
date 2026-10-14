@@ -479,3 +479,132 @@ func TestFromDirAliasBombDoesNotHang(t *testing.T) {
 		t.Fatal("alias bomb took too long")
 	}
 }
+
+func TestFromClientsetReplicaSetsAndControllers(t *testing.T) {
+	yes := true
+	zero, one := int32(0), int32(1)
+	tpl := corev1.PodTemplateSpec{
+		ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"app": "x"}},
+		Spec:       corev1.PodSpec{Containers: []corev1.Container{{Name: "c", Image: "vllm/vllm"}}},
+	}
+	rs := func(name string, replicas *int32, owner string) *appsv1.ReplicaSet {
+		o := &appsv1.ReplicaSet{
+			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "llm"},
+			Spec:       appsv1.ReplicaSetSpec{Replicas: replicas, Template: tpl},
+		}
+		if owner != "" {
+			o.OwnerReferences = []metav1.OwnerReference{{Kind: owner, Name: "o", Controller: &yes}}
+		}
+		return o
+	}
+	cs := fake.NewSimpleClientset(
+		rs("bare", &one, ""),
+		rs("owned-by-deployment", &one, "Deployment"),
+		rs("owned-by-rollout", &one, "Rollout"),
+		rs("old-rollout-revision", &zero, "Rollout"),
+		&corev1.ReplicationController{
+			ObjectMeta: metav1.ObjectMeta{Name: "rc", Namespace: "llm"},
+			Spec:       corev1.ReplicationControllerSpec{Replicas: &one, Template: &tpl},
+		},
+		&corev1.ReplicationController{
+			ObjectMeta: metav1.ObjectMeta{Name: "rc-no-template", Namespace: "llm"},
+		},
+		&corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{Name: "bare-x1", Namespace: "llm",
+				OwnerReferences: []metav1.OwnerReference{{Kind: "ReplicaSet", Name: "bare", Controller: &yes}}},
+			Spec: tpl.Spec,
+		},
+	)
+	ds, err := FromClientset(context.Background(), cs, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, w := range ds.Targets {
+		names = append(names, w.Kind+"/"+w.Name)
+	}
+	want := "ReplicaSet/bare ReplicaSet/owned-by-rollout ReplicationController/rc"
+	if strings.Join(names, " ") != want {
+		t.Errorf("targets = %v, want %s", names, want)
+	}
+}
+
+func TestFromDirReplicaSetRolloutAndController(t *testing.T) {
+	dir := t.TempDir()
+	manifest := `apiVersion: apps/v1
+kind: ReplicaSet
+metadata:
+  name: bare
+  namespace: llm
+spec:
+  template:
+    metadata:
+      labels: {app: x}
+    spec:
+      containers: [{name: c, image: vllm/vllm}]
+---
+apiVersion: apps/v1
+kind: ReplicaSet
+metadata:
+  name: owned
+  namespace: llm
+  ownerReferences:
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: d
+      controller: true
+spec:
+  template:
+    spec:
+      containers: [{name: c, image: vllm/vllm}]
+---
+apiVersion: v1
+kind: ReplicationController
+metadata:
+  name: rc
+spec:
+  template:
+    spec:
+      containers: [{name: c, image: ollama/ollama}]
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: canary
+  namespace: llm
+  labels: {ai.infra.guard/enabled: "true"}
+spec:
+  template:
+    metadata:
+      labels: {app: canary}
+    spec:
+      containers: [{name: c, image: vllm/vllm}]
+---
+apiVersion: example.com/v1
+kind: Rollout
+metadata:
+  name: other-group
+spec:
+  template:
+    spec:
+      containers: [{name: c, image: vllm/vllm}]
+`
+	if err := os.WriteFile(filepath.Join(dir, "m.yaml"), []byte(manifest), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	ds, err := FromDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, w := range ds.Targets {
+		names = append(names, w.Kind+"/"+w.Namespace+"/"+w.Name)
+	}
+	want := "ReplicaSet/llm/bare ReplicationController/default/rc Rollout/llm/canary"
+	if strings.Join(names, " ") != want || ds.Failed != 0 {
+		t.Errorf("targets = %v failed=%d", names, ds.Failed)
+	}
+	if ds.Targets[2].MetaLabels["ai.infra.guard/enabled"] != "true" || ds.Targets[2].Labels["app"] != "canary" {
+		t.Errorf("rollout labels = %+v", ds.Targets[2])
+	}
+}

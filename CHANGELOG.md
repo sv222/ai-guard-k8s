@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- ReplicaSets, ReplicationControllers and Argo Rollouts are scanned. Cluster scans list ReplicaSets that are not owned by a Deployment and ReplicationControllers (skipped at 0 replicas), which also makes Rollout pods visible. Manifests accept `kind: ReplicaSet`, `ReplicationController` and `Rollout` (`argoproj.io`). The cluster scan now needs list access to `replicasets` and `replicationcontrollers`.
 - `ai-guard scan --lenient` keeps decode errors as warnings. Without it, a file that cannot be decoded makes `scan --path` exit with 2.
 - `ai-guard enforce --skip-cilium` generates and applies only the Kyverno policies. `--apply` stopped with an error on clusters without Cilium CRDs after applying the Kyverno policies.
 - `examples/hardened/ollama.yaml` and `examples/hardened/vllm.yaml`: manifests with no findings, tested with Ollama 0.40.4 and vLLM 0.31.0 (CPU) on kind with the generated Kyverno policies in Enforce mode. A test checks that they stay clean. See the README section Hardened examples.

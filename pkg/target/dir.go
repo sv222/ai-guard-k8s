@@ -21,8 +21,9 @@ import (
 )
 
 type typeMeta struct {
-	Kind  string            `json:"kind"`
-	Items []json.RawMessage `json:"items"`
+	APIVersion string            `json:"apiVersion"`
+	Kind       string            `json:"kind"`
+	Items      []json.RawMessage `json:"items"`
 }
 
 const MaxFileSize = 10 << 20
@@ -127,6 +128,15 @@ func consumeObject(out *DirScan, raw []byte, source string) error {
 		}
 		return nil
 	}
+	if tm.Kind == "Rollout" && strings.HasPrefix(tm.APIVersion, "argoproj.io/") {
+		var o rollout
+		if err := decodeInto(raw, &o); err != nil {
+			return err
+		}
+		out.Targets = append(out.Targets, fromTemplate("Rollout", o.ObjectMeta, o.Spec.Template, source))
+		out.Objects++
+		return nil
+	}
 	switch tm.Kind {
 	case "Deployment":
 		var o appsv1.Deployment
@@ -140,6 +150,22 @@ func consumeObject(out *DirScan, raw []byte, source string) error {
 			return err
 		}
 		out.Targets = append(out.Targets, fromTemplate("StatefulSet", o.ObjectMeta, o.Spec.Template, source))
+	case "ReplicaSet":
+		var o appsv1.ReplicaSet
+		if err := decodeInto(raw, &o); err != nil {
+			return err
+		}
+		if !isControlledBy(o.ObjectMeta, "Deployment") {
+			out.Targets = append(out.Targets, fromTemplate("ReplicaSet", o.ObjectMeta, o.Spec.Template, source))
+		}
+	case "ReplicationController":
+		var o corev1.ReplicationController
+		if err := decodeInto(raw, &o); err != nil {
+			return err
+		}
+		if o.Spec.Template != nil {
+			out.Targets = append(out.Targets, fromTemplate("ReplicationController", o.ObjectMeta, *o.Spec.Template, source))
+		}
 	case "DaemonSet":
 		var o appsv1.DaemonSet
 		if err := decodeInto(raw, &o); err != nil {
@@ -192,6 +218,13 @@ func consumeObject(out *DirScan, raw []byte, source string) error {
 	}
 	out.Objects++
 	return nil
+}
+
+type rollout struct {
+	metav1.ObjectMeta `json:"metadata"`
+	Spec              struct {
+		Template corev1.PodTemplateSpec `json:"template"`
+	} `json:"spec"`
 }
 
 func fromTemplate(kind string, meta metav1.ObjectMeta, tpl corev1.PodTemplateSpec, source string) WorkloadTarget {
