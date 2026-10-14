@@ -65,6 +65,6 @@ func newEnforceCmd(kubeconfig *string) *cobra.Command {
 	c.Flags().StringVar(&mode, "mode", enforce.ModeAudit, "Kyverno validationFailureAction: audit or enforce")
 	c.Flags().StringSliceVar(&fqdns, "allow-fqdn", nil, "extra host allowed for egress by the Cilium policy (repeatable)")
 	c.Flags().BoolVar(&skipCilium, "skip-cilium", false, "do not generate or apply the CiliumNetworkPolicy (for clusters without Cilium)")
-	c.Flags().StringVarP(&namespace, "namespace", "n", "", "namespace for the namespaced CiliumNetworkPolicy (default: default)")
+	c.Flags().StringVarP(&namespace, "namespace", "n", "", "namespace: make the Cilium policy a namespaced CiliumNetworkPolicy there (default: a cluster-wide CiliumClusterwideNetworkPolicy)")
 	return c
 }

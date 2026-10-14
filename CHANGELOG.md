@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- The default Cilium egress policy is a `CiliumClusterwideNetworkPolicy`. Before, it was a `CiliumNetworkPolicy` that landed in the `default` namespace when you did not pass `-n`, so pods in other namespaces got no egress limit. `-n` still creates a namespaced `CiliumNetworkPolicy`. `--out` and `--apply` produce the same object. Delete the old `aig-inference-egress` policy from `default` after you switch.
+
 ### Added
 
 - ReplicaSets, ReplicationControllers and Argo Rollouts are scanned. Cluster scans list ReplicaSets that are not owned by a Deployment and ReplicationControllers (skipped at 0 replicas), which also makes Rollout pods visible. Manifests accept `kind: ReplicaSet`, `ReplicationController` and `Rollout` (`argoproj.io`). The cluster scan now needs list access to `replicasets` and `replicationcontrollers`.

@@ -235,12 +235,14 @@ func ciliumPolicy(sel map[string]string, fqdns []string, namespace string) obj {
 		}
 	}
 	meta := obj{"name": "aig-inference-egress"}
+	kind := "CiliumClusterwideNetworkPolicy"
 	if namespace != "" {
+		kind = "CiliumNetworkPolicy"
 		meta["namespace"] = namespace
 	}
 	return obj{
 		"apiVersion": "cilium.io/v2",
-		"kind":       "CiliumNetworkPolicy",
+		"kind":       kind,
 		"metadata":   meta,
 		"spec": obj{
 			"endpointSelector": obj{"matchLabels": sel},

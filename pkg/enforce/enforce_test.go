@@ -197,13 +197,17 @@ func TestFQDNs(t *testing.T) {
 	}
 }
 
-func TestCiliumNamespace(t *testing.T) {
+func TestCiliumScope(t *testing.T) {
 	files, err := Policies(Options{Namespace: "llm"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(files[3].Content, "namespace: llm") {
-		t.Errorf("namespace missing:\n%s", files[3].Content)
+	if !strings.Contains(files[3].Content, "namespace: llm") || !strings.Contains(files[3].Content, "kind: CiliumNetworkPolicy") {
+		t.Errorf("namespaced policy expected:\n%s", files[3].Content)
+	}
+	def := defaultPolicies(t)
+	if !strings.Contains(def[3].Content, "kind: CiliumClusterwideNetworkPolicy") || strings.Contains(def[3].Content, "\n  namespace: ") {
+		t.Errorf("cluster-wide policy expected:\n%s", def[3].Content)
 	}
 }
 

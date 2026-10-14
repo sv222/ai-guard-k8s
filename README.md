@@ -105,14 +105,14 @@ PSS means [Pod Security Standards](https://kubernetes.io/docs/concepts/security/
 This writes four files. The default output is also in [`policies/`](policies/).
 
 - `aig-require-nonroot.yaml`, `aig-block-host-access.yaml`, `aig-require-resources.yaml`: Kyverno `ClusterPolicy`.
-- `aig-cilium-egress-fqdn.yaml`: `CiliumNetworkPolicy` that allows DNS and model download hosts only.
+- `aig-cilium-egress-fqdn.yaml`: `CiliumClusterwideNetworkPolicy` that allows DNS and model download hosts only. It selects labeled pods in every namespace, including `kube-system`. With `-n llm` it is a namespaced `CiliumNetworkPolicy` in `llm` instead.
 
 Policies select pods with the label `ai.infra.guard/enabled: "true"`. Change this with `--selector team=llm,tier=gpu`. They skip `kube-system`, `kube-public` and `kube-node-lease`.
 
     ai-guard enforce --mode enforce                      # Kyverno blocks bad pods
     ai-guard enforce --allow-fqdn models.example.com     # add an egress host (repeatable)
     ai-guard enforce --apply --dry-run                   # print what would be applied, change nothing
-    ai-guard enforce --apply -n llm                      # server-side apply; -n sets the Cilium policy namespace
+    ai-guard enforce --apply -n llm                      # server-side apply; -n makes the Cilium policy namespaced
     ai-guard enforce --apply --skip-cilium               # Kyverno policies only, for clusters without Cilium
 
 The Cilium policy allows Hugging Face hosts by default, including the two-label storage hosts, because a Cilium `*` matches one label only. `--apply` needs the Kyverno and Cilium CRDs in the cluster. On a cluster without Cilium, add `--skip-cilium` to generate and apply only the three Kyverno policies.
@@ -166,7 +166,7 @@ Tests on a real kind cluster (Kubernetes 1.37):
 
 - `scan --cluster` and `scan --path` gave identical findings for the same workloads.
 - Kyverno 1.19.1 in Audit mode recorded violations. In Enforce mode it rejected the bad pod and admitted the hardened one. `kube-system` was excluded.
-- Cilium 1.20.2 accepted the generated `CiliumNetworkPolicy`.
+- Cilium 1.20.2 accepted the generated namespaced `CiliumNetworkPolicy`. The cluster-wide default (`CiliumClusterwideNetworkPolicy`) has not been run against a cluster.
 
 Not verified:
 

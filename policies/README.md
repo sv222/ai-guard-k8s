@@ -7,7 +7,7 @@ Kyverno and Cilium policies for AI inference workloads. They select pods labeled
 | `aig-require-nonroot.yaml` | Kyverno ClusterPolicy | non-root, no privilege escalation, not privileged |
 | `aig-block-host-access.yaml` | Kyverno ClusterPolicy | no hostNetwork, hostPID or hostPath |
 | `aig-require-resources.yaml` | Kyverno ClusterPolicy | resource requests and limits |
-| `aig-cilium-egress-fqdn.yaml` | CiliumNetworkPolicy | egress only to DNS and model download hosts |
+| `aig-cilium-egress-fqdn.yaml` | CiliumClusterwideNetworkPolicy (CiliumNetworkPolicy with `-n`) | egress only to DNS and model download hosts |
 
 ## How the pack is generated
 

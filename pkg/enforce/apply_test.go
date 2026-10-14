@@ -21,6 +21,7 @@ func testMapper(withCilium bool) meta.RESTMapper {
 	m.Add(schema.GroupVersionKind{Group: "kyverno.io", Version: "v1", Kind: "ClusterPolicy"}, meta.RESTScopeRoot)
 	if withCilium {
 		m.Add(schema.GroupVersionKind{Group: "cilium.io", Version: "v2", Kind: "CiliumNetworkPolicy"}, meta.RESTScopeNamespace)
+		m.Add(schema.GroupVersionKind{Group: "cilium.io", Version: "v2", Kind: "CiliumClusterwideNetworkPolicy"}, meta.RESTScopeRoot)
 	}
 	return m
 }
@@ -55,7 +56,7 @@ func TestApplyUsesRESTMapping(t *testing.T) {
 		t.Errorf("clusterpolicy action = %v ns=%q", kyverno.GetResource(), kyverno.GetNamespace())
 	}
 	cilium := byName["aig-inference-egress"]
-	if cilium.GetResource().Resource != "ciliumnetworkpolicies" || cilium.GetNamespace() != "default" {
+	if cilium.GetResource().Resource != "ciliumclusterwidenetworkpolicies" || cilium.GetNamespace() != "" {
 		t.Errorf("cilium action = %v ns=%q", cilium.GetResource(), cilium.GetNamespace())
 	}
 	if !strings.Contains(out.String(), "applied ClusterPolicy aig-require-nonroot") {
@@ -79,15 +80,26 @@ func TestApplyNamespaceFlag(t *testing.T) {
 	}
 }
 
-func TestApplyDefaultNamespaceFromFlag(t *testing.T) {
+func TestApplyClusterwideIgnoresNamespaceFlag(t *testing.T) {
 	client, patches := fakeClient()
 	if err := Apply(context.Background(), client, testMapper(true), defaultPolicies(t), "gpu", &bytes.Buffer{}); err != nil {
 		t.Fatal(err)
 	}
 	for _, p := range *patches {
-		if p.GetName() == "aig-inference-egress" && p.GetNamespace() != "gpu" {
-			t.Errorf("namespace = %q, want gpu", p.GetNamespace())
+		if p.GetNamespace() != "" {
+			t.Errorf("%s was applied in namespace %q", p.GetName(), p.GetNamespace())
 		}
+	}
+}
+
+func TestApplyNamespacedPolicyWithoutNamespaceUsesFlag(t *testing.T) {
+	client, patches := fakeClient()
+	file := PolicyFile{Name: "p.yaml", Content: "apiVersion: cilium.io/v2\nkind: CiliumNetworkPolicy\nmetadata:\n  name: p\n"}
+	if err := Apply(context.Background(), client, testMapper(true), []PolicyFile{file}, "gpu", &bytes.Buffer{}); err != nil {
+		t.Fatal(err)
+	}
+	if len(*patches) != 1 || (*patches)[0].GetNamespace() != "gpu" {
+		t.Errorf("patches = %v", *patches)
 	}
 }
 
@@ -127,8 +139,16 @@ func TestPlan(t *testing.T) {
 	if strings.Count(got, "would apply") != 4 {
 		t.Errorf("plan output:\n%s", got)
 	}
-	if !strings.Contains(got, "would apply CiliumNetworkPolicy aig-inference-egress in namespace default") {
+	if !strings.Contains(got, "would apply CiliumClusterwideNetworkPolicy aig-inference-egress (aig-cilium-egress-fqdn.yaml)") {
 		t.Errorf("plan output:\n%s", got)
+	}
+	namespaced, err := Policies(Options{Namespace: "llm"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var nsOut bytes.Buffer
+	if err := Plan(namespaced, "", &nsOut); err != nil || !strings.Contains(nsOut.String(), "would apply CiliumNetworkPolicy aig-inference-egress in namespace llm") {
+		t.Errorf("err=%v plan output:\n%s", err, nsOut.String())
 	}
 	if err := Plan([]PolicyFile{{Name: "bad.yaml", Content: "a: [x"}}, "", &out); err == nil {
 		t.Error("expected error for invalid content")
