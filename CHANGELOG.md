@@ -8,12 +8,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- GitHub Actions are pinned by commit SHA, GoReleaser and tool versions are pinned, builds use `-trimpath`, and the release job gets only the permissions it needs. CI and release use Go 1.27.2. The README CI example pins ai-guard to a version.
+- `enforce` rejects a `--namespace` value that is not a valid namespace name.
 - Findings are sorted by namespace, name, kind, ID, title and evidence, so the order no longer depends on the input order.
 - `enforce --apply` prints the context and server, asks for confirmation (`--yes` skips it and is required without a terminal), accepts `--context`, and checks that all policy kinds exist before it applies the first one. Before, a missing Cilium CRD stopped the run after the Kyverno policies were applied.
 - The default Cilium egress policy is a `CiliumClusterwideNetworkPolicy`. Before, it was a `CiliumNetworkPolicy` that landed in the `default` namespace when you did not pass `-n`, so pods in other namespaces got no egress limit. `-n` still creates a namespaced `CiliumNetworkPolicy`. `--out` and `--apply` produce the same object. Delete the old `aig-inference-egress` policy from `default` after you switch.
 
 ### Added
 
+- Fuzz targets (`go test -fuzz`) for manifest decoding, workload analysis, selector parsing, FQDN validation, policy generation and JSON output, plus a seeded property test for the scanner. `make fuzz` runs each target for a short time; CI runs the seed corpora as normal tests.
+- CI jobs for `go vet`, `staticcheck` and `govulncheck` with pinned versions, and a Dependabot config for Go modules and GitHub Actions.
+- Release workflow: SBOM per archive (Syft), keyless cosign signature of `checksums.txt` and a build provenance attestation. These steps run only on version tags and were not run before this change.
 - JSON findings carry a `source` field with the file the workload came from (`cluster` for live objects). Duplicate findings from several sources are still reported once, with the first source.
 - `scan` prints a warning for AI workloads skipped by the `helm.sh/hook: test` rule.
 - Ray Serve is detected from `rayproject/ray` and similar images when the command contains `serve`.
@@ -29,6 +34,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- AIG-009 evidence listed policy names in the order they were read, so the same cluster could give different text from different sources. Names are sorted. Found by the new fuzz target.
+- Vulnerable indirect dependencies are updated: `golang.org/x/net` 0.30.0 to 0.60.0 and `golang.org/x/text` 0.19.0 to 0.42.0 (8 findings of `govulncheck`, reachable through the client-go HTTP client). The Go version in `go.mod` is now 1.26.0.
 - The Kyverno policies also block `hostIPC` and `hostPort`, and the resources policy checks init containers like AIG-007. Ephemeral containers are not covered.
 - `enforce --out` refuses to write through a symlink or over a special file.
 - `--allow-fqdn` rejects `*.com`, `*.*`, wildcards inside a label and names with invalid labels. A wildcard must be the whole leftmost label and needs at least two fixed labels after it.

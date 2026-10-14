@@ -50,6 +50,12 @@ The full scan of the offending sample prints 22 findings: 12 High, 8 Medium and 
 
 Download the archive for your system from the [Releases page](https://github.com/sv222/ai-guard-k8s/releases). Files are named `ai-guard_<version>_<os>_<arch>.tar.gz`, or `.zip` on Windows. Check the file with `checksums.txt`, then put `ai-guard` in your `PATH`.
 
+Each release also has an SBOM per archive (SPDX, made by Syft) and `checksums.txt.sigstore.json`, a keyless [cosign](https://github.com/sigstore/cosign) signature of `checksums.txt` made by the release workflow. To verify it:
+
+    cosign verify-blob checksums.txt --bundle checksums.txt.sigstore.json \n      --certificate-identity-regexp "^https://github.com/sv222/ai-guard-k8s/.github/workflows/release.yml/tags/v" \n      --certificate-oidc-issuer https://token.actions.githubusercontent.com
+
+The signing, the SBOM and the build provenance attestation run only when a version tag is pushed. They have not been run yet, so the first release is their first test. Binaries are built with `-trimpath`.
+
 With Go, or from source:
 
     go install github.com/sv222/ai-guard-k8s@latest
@@ -157,17 +163,23 @@ jobs:
   scan:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          go-version: stable
-      - run: go install github.com/sv222/ai-guard-k8s@latest
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version: "1.27.2"
+      - run: go install github.com/sv222/ai-guard-k8s@v0.2.0
       - run: ai-guard scan --path manifests/ --fail-on high
 ```
+
+The actions are pinned by commit SHA and ai-guard by tag. Update them when you upgrade.
 
 ## How it was tested
 
 Unit tests run with `go test -race ./...` in CI. Line coverage (measured with Go 1.27): `cmd` 90.5%, `pkg/checks` 98.8%, `pkg/scanner` 97.8%. The lowest package is `pkg/target` at 76.2%.
+
+Fuzz tests (`make fuzz`, native `go test -fuzz`) cover manifest decoding, workload analysis, selector parsing, `--allow-fqdn` validation, policy generation (the output must parse as YAML and contain no bare wildcard host) and JSON output. A seeded property test checks that analysis never panics, is deterministic and does not depend on input order. Each target ran for 45 seconds in the review of 2026-10-14. One failure was found: the evidence text of AIG-009 listed policy names in input order. It is fixed and the input is kept as a seed. The YAML-based scanner target ran very few executions in that time, so the generated-input target (`FuzzAnalyzeGenerated`) does most of the work there. CI runs the seed corpora as normal tests, not as fuzzing.
 
 Tests on a real kind cluster (Kubernetes 1.37):
 

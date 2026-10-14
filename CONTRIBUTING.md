@@ -8,6 +8,8 @@ Thanks for your interest. Small, focused pull requests are easiest to review.
     make test
     make vet
     make fmt
+    make fuzz                  # about 15 seconds per fuzz target; FUZZTIME=60s for longer
+    make fuzz-seeds            # run the fuzz seed corpora as normal tests
 
 Before you open a pull request, also run `gofmt -s -l .` and `go mod tidy`. Both must leave no changes.
 
