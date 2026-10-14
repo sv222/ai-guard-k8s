@@ -77,4 +77,6 @@ type DirScan struct {
 	Services  []ServiceEntry
 	Ingresses []IngressEntry
 	Warnings  []string
+	Failed    int
+	Objects   int
 }

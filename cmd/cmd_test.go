@@ -185,17 +185,75 @@ func TestScanOfflineIsDeprecatedNoop(t *testing.T) {
 	}
 }
 
-func TestScanWarnsOnInvalidYAML(t *testing.T) {
+func writeDir(t *testing.T, files map[string]string) string {
+	t.Helper()
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "broken.yaml"), []byte("key: [unterminated\nother: : :\n"), 0o644); err != nil {
-		t.Fatal(err)
+	for name, content := range files {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
 	}
+	return dir
+}
+
+func TestScanInvalidYAMLFails(t *testing.T) {
+	dir := writeDir(t, map[string]string{"broken.yaml": "key: [unterminated\nother: : :\n"})
 	_, stderr, code := run(t, "scan", "--path", dir)
-	if code != 0 {
-		t.Errorf("code = %d", code)
+	if code != 2 {
+		t.Errorf("code = %d, want 2", code)
 	}
-	if !strings.Contains(stderr, "warning:") || !strings.Contains(stderr, "broken.yaml") {
+	if !strings.Contains(stderr, "warning:") || !strings.Contains(stderr, "broken.yaml") || !strings.Contains(stderr, "Error:") {
 		t.Errorf("stderr = %q", stderr)
+	}
+}
+
+func TestScanPartialFailureIsError(t *testing.T) {
+	dir := writeDir(t, map[string]string{
+		"good.yaml":   lowOnly,
+		"broken.yaml": "kind: Deployment\nmetadata: [x\n",
+	})
+	stdout, stderr, code := run(t, "scan", "--path", dir)
+	if code != 2 {
+		t.Errorf("code = %d, want 2; stderr=%s", code, stderr)
+	}
+	if !strings.Contains(stdout, "AIG-") && !strings.Contains(stdout, "No findings") {
+		t.Errorf("report should still be printed: %q", stdout)
+	}
+	if !strings.Contains(stderr, "incomplete") {
+		t.Errorf("stderr = %q", stderr)
+	}
+	if _, stderr, code = run(t, "scan", "--path", dir, "--lenient", "--fail-on", "high"); code != 0 || !strings.Contains(stderr, "warning:") {
+		t.Errorf("lenient: code=%d stderr=%q", code, stderr)
+	}
+}
+
+func TestScanBadTypesInDeploymentFail(t *testing.T) {
+	bad := "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: vllm\nspec:\n  replicas: three\n  template:\n    spec:\n      containers: []\n"
+	_, stderr, code := run(t, "scan", "--path", writeDir(t, map[string]string{"d.yaml": bad}))
+	if code != 2 || !strings.Contains(stderr, "decode") {
+		t.Errorf("code=%d stderr=%q", code, stderr)
+	}
+}
+
+func TestScanRawHelmTemplateFails(t *testing.T) {
+	tpl := "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: {{ include \"x.fullname\" . }}\nspec:\n  replicas: {{ .Values.replicas }}\n"
+	_, stderr, code := run(t, "scan", "--path", writeDir(t, map[string]string{"deployment.yaml": tpl}))
+	if code != 2 {
+		t.Errorf("code = %d, want 2; stderr=%q", code, stderr)
+	}
+}
+
+func TestScanNoManifestsFails(t *testing.T) {
+	for name, files := range map[string]map[string]string{
+		"empty dir":       {},
+		"only text":       {"notes.txt": "hello"},
+		"not kubernetes":  {"values.yaml": "replicas: 2\nimage: x\n"},
+		"empty yaml file": {"empty.yaml": ""},
+	} {
+		_, stderr, code := run(t, "scan", "--path", writeDir(t, files), "--lenient")
+		if code != 2 || !strings.Contains(stderr, "no Kubernetes") {
+			t.Errorf("%s: code=%d stderr=%q", name, code, stderr)
+		}
 	}
 }
 

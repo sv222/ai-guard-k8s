@@ -8,12 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- `ai-guard scan --lenient` keeps decode errors as warnings. Without it, a file that cannot be decoded makes `scan --path` exit with 2.
 - `ai-guard enforce --skip-cilium` generates and applies only the Kyverno policies. `--apply` stopped with an error on clusters without Cilium CRDs after applying the Kyverno policies.
 - `examples/hardened/ollama.yaml` and `examples/hardened/vllm.yaml`: manifests with no findings, tested with Ollama 0.40.4 and vLLM 0.31.0 (CPU) on kind with the generated Kyverno policies in Enforce mode. A test checks that they stay clean. See the README section Hardened examples.
 - AIG-010 also reports workloads exposed through an Ingress that routes to a Service selecting them. Ingress auth annotations and `ai.infra.guard/gateway-auth: "true"` on the Ingress count as auth evidence. Cluster scans list Ingresses; a permission error gives a warning instead of failing the scan.
 
 ### Fixed
 
+- `scan --path` exited with 0 and printed "No findings." when files could not be decoded (raw Helm templates, a Deployment with a wrong field type) or when the path had no Kubernetes object. It now exits with 2 and says why.
 - AIG-001 and AIG-010 read auth env names per engine. vLLM reads only `--api-key` and `VLLM_API_KEY`, so `API_KEY` and `OPENAI_API_KEY` no longer hide a missing key on vLLM. Ollama, TGI, Triton and other engines without native auth get no credit from an env var. Text Embeddings Inference (`API_KEY`), llama.cpp (`LLAMA_API_KEY`) and LocalAI (`LOCALAI_API_KEY`, `API_KEY`) keep their own names.
 - AIG-009 judges ingress only. An ingress rule with `ports` but no `from`, or with an empty `namespaceSelector`, no longer counts as isolation, and an egress-only policy no longer hides the finding while ingress stays open.
 - `envFrom` Secret names count as auth evidence for AIG-001 only when they contain api-key, api-token, auth or bearer. Names such as `hf-token`, `aws-credentials` and `registry-auth` no longer hide a missing API key. Names with only `key` or `token` (for example `vllm-key`) no longer count.

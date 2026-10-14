@@ -19,6 +19,7 @@ func newScanCmd(kubeconfig *string) *cobra.Command {
 		cluster   bool
 		failOn    string
 		offline   bool
+		lenient   bool
 	)
 	c := &cobra.Command{
 		Use:   "scan",
@@ -26,6 +27,7 @@ func newScanCmd(kubeconfig *string) *cobra.Command {
 		Long: "Audit AI inference workloads.\n\n" +
 			"With --path, only the manifests under that path are scanned. Add --cluster to scan the live cluster as well.\n" +
 			"Without --path, the live cluster from the kubeconfig is scanned.\n\n" +
+			"Files that cannot be decoded make the scan fail with exit 2 unless --lenient is set. A path with no Kubernetes object at all is also an error.\n\n" +
 			"Exit codes: 0 no findings at or above --fail-on, 1 findings, 2 error.",
 		RunE: func(c *cobra.Command, args []string) error {
 			threshold, err := checks.ParseSeverity(failOn)
@@ -44,6 +46,9 @@ func newScanCmd(kubeconfig *string) *cobra.Command {
 				Selector:   selector,
 			})
 			if err != nil {
+				for _, w := range res.Warnings {
+					fmt.Fprintln(c.ErrOrStderr(), "warning:", w)
+				}
 				return runtimeError(err)
 			}
 			for _, w := range res.Warnings {
@@ -57,6 +62,9 @@ func newScanCmd(kubeconfig *string) *cobra.Command {
 			if err != nil {
 				return runtimeError(err)
 			}
+			if res.Failed > 0 && !lenient {
+				return runtimeError(fmt.Errorf("%d documents could not be decoded, so the scan is incomplete (fix them, or use --lenient to scan the rest)", res.Failed))
+			}
 			if checks.AtLeast(res.Findings, threshold) {
 				return &ExitError{Code: ExitFindings}
 			}
@@ -69,6 +77,7 @@ func newScanCmd(kubeconfig *string) *cobra.Command {
 	c.Flags().StringVar(&selector, "workload-selector", "", "extra label selector marking AI workloads, for example tier=inference")
 	c.Flags().StringVarP(&namespace, "namespace", "n", "", "cluster namespace (empty = all)")
 	c.Flags().StringVar(&failOn, "fail-on", "low", "lowest severity that makes the exit code 1: low, medium or high")
+	c.Flags().BoolVar(&lenient, "lenient", false, "with --path, do not fail when some files cannot be decoded (they are still listed as warnings)")
 	c.Flags().BoolVar(&offline, "offline", false, "deprecated no-op: --path already skips the cluster")
 	_ = c.Flags().MarkHidden("offline")
 	return c

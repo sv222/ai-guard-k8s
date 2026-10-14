@@ -54,6 +54,7 @@ func consumeFile(out *DirScan, data []byte, path string) {
 			return
 		}
 		if err != nil {
+			out.Failed++
 			out.Warnings = append(out.Warnings, fmt.Sprintf("%s: %v", path, err))
 			return
 		}
@@ -62,6 +63,7 @@ func consumeFile(out *DirScan, data []byte, path string) {
 		}
 		raw, err := yaml.YAMLToJSON(doc)
 		if err != nil {
+			out.Failed++
 			out.Warnings = append(out.Warnings, fmt.Sprintf("%s: document %d is not valid YAML: %v", path, idx, err))
 			continue
 		}
@@ -69,6 +71,7 @@ func consumeFile(out *DirScan, data []byte, path string) {
 			continue
 		}
 		if err := consumeObject(out, raw, path); err != nil {
+			out.Failed++
 			out.Warnings = append(out.Warnings, fmt.Sprintf("%s: document %d: %v", path, idx, err))
 		}
 	}
@@ -153,6 +156,7 @@ func consumeObject(out *DirScan, raw []byte, source string) error {
 		}
 		out.Services = append(out.Services, serviceEntry(o))
 	}
+	out.Objects++
 	return nil
 }
 

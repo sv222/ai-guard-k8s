@@ -26,6 +26,7 @@ type Options struct {
 type Result struct {
 	Findings []checks.Finding
 	Warnings []string
+	Failed   int
 }
 
 func Scan(ctx context.Context, o Options) (Result, error) {
@@ -43,6 +44,13 @@ func Scan(ctx context.Context, o Options) (Result, error) {
 			return res, err
 		}
 		res.Warnings = append(res.Warnings, ds.Warnings...)
+		res.Failed += ds.Failed
+		if ds.Objects == 0 {
+			if ds.Failed > 0 {
+				return res, fmt.Errorf("no Kubernetes object under %s could be decoded (%d documents failed)", o.Path, ds.Failed)
+			}
+			return res, fmt.Errorf("no Kubernetes manifests found under %s (looked for .yaml, .yml and .json files)", o.Path)
+		}
 		all = append(all, Analyze(ds, o.Selector)...)
 	}
 	if o.Cluster {

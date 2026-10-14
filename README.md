@@ -71,9 +71,11 @@ With Go, or from source:
 |---|---|
 | 0 | no finding at or above `--fail-on` |
 | 1 | at least one finding at or above `--fail-on` |
-| 2 | error: bad flag, unreadable path, cluster unreachable |
+| 2 | error: bad flag, unreadable path, cluster unreachable, a file that cannot be decoded (unless `--lenient`), or a path with no Kubernetes object |
 
 `--fail-on` accepts `low`, `medium` or `high`. The default is `low`.
+
+With `--path`, a file or document that cannot be decoded (broken YAML, wrong field types, raw Helm templates) fails the scan with exit code 2. The findings for the other files are still printed. Add `--lenient` to scan the rest and keep the decode errors as warnings. A path with no Kubernetes object at all always exits with 2, so an empty or wrong directory cannot pass as clean.
 
 ## What it checks
 
