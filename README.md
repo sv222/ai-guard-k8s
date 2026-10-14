@@ -77,7 +77,7 @@ With Go, or from source:
 
 ## What it checks
 
-A workload counts as AI inference if its name or an image contains `vllm`, `ollama`, `tritonserver`, `text-generation-inference`, `tgi` (whole word only), `ray-serve`, `text-embeddings-inference`, `local-ai`, `localai`, `sglang`, `llama.cpp`, `llama-cpp`, `lmdeploy` or `tensorrt-llm`. You can also set the label or annotation `ai.infra.guard/enabled: "true"`, or pass `--workload-selector tier=inference`.
+A workload counts as AI inference if its name or an image contains `vllm`, `ollama`, `tritonserver`, `text-generation-inference`, `tgi` (whole word only), `ray-serve`, `text-embeddings-inference`, `local-ai`, `localai`, `sglang`, `llama.cpp`, `llama-cpp`, `lmdeploy` or `tensorrt-llm`. A container whose `command` or `args` start an engine also counts, for example `vllm serve`, `python -m vllm.entrypoints...` or `exec ollama serve`. You can also set the label or annotation `ai.infra.guard/enabled: "true"`, or pass `--workload-selector tier=inference`.
 
 | ID | Risk | Severity | How it is detected | Fix | Maps to |
 |---|---|---|---|---|---|

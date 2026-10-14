@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- Engines started by `command` or `args` are detected when the image name does not match, for example `vllm serve`, `python -m vllm.entrypoints...` or `exec ollama serve`. A vLLM server in a custom image got no AIG-001, AIG-002 or AIG-008 checks.
 - Engines missed before are now detected by image: `text-embeddings-inference`, `local-ai` and `localai`, `sglang`, `llama.cpp` and `llama-cpp`, `lmdeploy` and `tensorrt-llm`. A Text Embeddings Inference chart behind a `LoadBalancer` gave no findings.
 - `tgi` matches only as a whole word. Images such as `postgis/postgis` were detected as Text Generation Inference.
 - Helm test hook pods (`helm.sh/hook: test`) are no longer scanned. A `wget` test pod named after the chart was reported as an inference workload.

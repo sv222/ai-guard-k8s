@@ -1,6 +1,7 @@
 package detect
 
 import (
+	"path"
 	"strings"
 
 	"github.com/sv222/ai-guard-k8s/pkg/target"
@@ -39,7 +40,15 @@ func IsAIWorkload(w target.WorkloadTarget, extraSelector string) bool {
 	for _, c := range w.Containers() {
 		hay += " " + strings.ToLower(c.Image)
 	}
-	return matchesPattern(hay)
+	if matchesPattern(hay) {
+		return true
+	}
+	for _, c := range w.Containers() {
+		if engineFromCommand(target.CommandLine(c)) != "" {
+			return true
+		}
+	}
+	return false
 }
 
 func matchesPattern(s string) bool {
@@ -74,6 +83,57 @@ func isAlnum(b byte) bool {
 	return b >= 'a' && b <= 'z' || b >= '0' && b <= '9'
 }
 
+func Engine(c corev1.Container) string {
+	img := strings.ToLower(c.Image)
+	for _, p := range patterns {
+		if containsPattern(img, p) {
+			return p
+		}
+	}
+	return engineFromCommand(target.CommandLine(c))
+}
+
 func IsAIContainer(c corev1.Container) bool {
-	return matchesPattern(strings.ToLower(c.Image))
+	return Engine(c) != ""
+}
+
+var engineBinaries = map[string]string{
+	"vllm":                     "vllm",
+	"ollama":                   "ollama",
+	"tritonserver":             "tritonserver",
+	"text-generation-launcher": "text-generation-inference",
+	"text-generation-router":   "text-generation-inference",
+	"text-embeddings-router":   "text-embeddings-inference",
+	"llama-server":             "llama.cpp",
+	"sglang":                   "sglang",
+	"lmdeploy":                 "lmdeploy",
+	"local-ai":                 "local-ai",
+	"trtllm-serve":             "tensorrt-llm",
+}
+
+var engineModules = map[string]string{
+	"vllm":   "vllm",
+	"sglang": "sglang",
+}
+
+var commandStarters = map[string]bool{"-c": true, "exec": true, "&&": true, "||": true, ";": true, "|": true, "then": true, "do": true}
+
+func engineFromCommand(tokens []string) string {
+	for i := 0; i < len(tokens); i++ {
+		afterModule := i > 0 && tokens[i-1] == "-m"
+		if i > 0 && !commandStarters[tokens[i-1]] && !afterModule {
+			continue
+		}
+		t := strings.ToLower(strings.Trim(tokens[i], "\"';"))
+		if afterModule {
+			if e, ok := engineModules[strings.SplitN(t, ".", 2)[0]]; ok {
+				return e
+			}
+			continue
+		}
+		if e, ok := engineBinaries[path.Base(t)]; ok {
+			return e
+		}
+	}
+	return ""
 }

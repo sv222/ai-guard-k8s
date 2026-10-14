@@ -37,7 +37,7 @@ func aig001(w target.WorkloadTarget) []Finding {
 		if hasAuthEvidence(c) {
 			continue
 		}
-		if strings.Contains(strings.ToLower(c.Image), "vllm") {
+		if detect.Engine(c) == "vllm" {
 			out = append(out, Finding{
 				ID: "AIG-001", Title: "vLLM without API key auth", Severity: "High",
 				Evidence: fmt.Sprintf("container %s: no --api-key arg and no VLLM_API_KEY/API_KEY env", c.Name),
@@ -226,28 +226,9 @@ type modelValue struct {
 	kind, raw, value string
 }
 
-func commandLine(c corev1.Container) []string {
-	raw := make([]string, 0, len(c.Command)+len(c.Args))
-	raw = append(raw, c.Command...)
-	raw = append(raw, c.Args...)
-	out := make([]string, 0, len(raw))
-	for _, a := range raw {
-		if !strings.ContainsAny(a, " \t\r\n") {
-			out = append(out, a)
-			continue
-		}
-		for _, f := range strings.Fields(a) {
-			if f = strings.Trim(f, "\"'"); f != "" {
-				out = append(out, f)
-			}
-		}
-	}
-	return out
-}
-
 func modelValues(c corev1.Container) []modelValue {
 	var out []modelValue
-	for _, a := range commandLine(c) {
+	for _, a := range target.CommandLine(c) {
 		out = append(out, modelValue{kind: "arg", raw: a, value: argValue(a)})
 	}
 	for _, e := range c.Env {
@@ -312,7 +293,7 @@ func effectiveSeccomp(pod *corev1.PodSecurityContext, c *corev1.SecurityContext)
 }
 
 func hasArg(c corev1.Container, arg string) bool {
-	for _, a := range commandLine(c) {
+	for _, a := range target.CommandLine(c) {
 		if a == arg || strings.HasPrefix(a, arg+"=") {
 			return true
 		}

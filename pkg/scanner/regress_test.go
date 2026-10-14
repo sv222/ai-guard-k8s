@@ -61,3 +61,29 @@ func TestRegressEnginesBeyondTheFirstList(t *testing.T) {
 		t.Errorf("AIG-010 = %d, want 1 (embed behind a LoadBalancer)", got)
 	}
 }
+
+func TestRegressEngineStartedByCommand(t *testing.T) {
+	res, err := Scan(context.Background(), Options{Path: regress + "/args-engine.yaml"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	high := map[string]bool{}
+	other := map[string]int{}
+	for _, f := range res.Findings {
+		if f.ID == "AIG-001" && f.Severity == "High" {
+			high[f.Name] = true
+		}
+		if f.Name == "web" {
+			other[f.ID]++
+		}
+	}
+	if !high["llm-gateway"] || !high["qa"] {
+		t.Errorf("vLLM started by command not detected: %v", high)
+	}
+	if len(other) != 0 {
+		t.Errorf("web service with vllm only as an argument value was scanned: %v", other)
+	}
+	if got := idSet(res.Findings)["AIG-008"]; got != 1 {
+		t.Errorf("AIG-008 = %d, want 1 for --trust-remote-code in the shell string", got)
+	}
+}

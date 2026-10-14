@@ -116,3 +116,27 @@ func TestIsAIContainer(t *testing.T) {
 		t.Error("IsAIContainer wrong")
 	}
 }
+
+func TestEngineFromCommand(t *testing.T) {
+	tests := []struct {
+		name string
+		c    corev1.Container
+		want string
+	}{
+		{"binary first", corev1.Container{Image: "x", Command: []string{"vllm", "serve", "m"}}, "vllm"},
+		{"absolute path", corev1.Container{Image: "x", Command: []string{"/opt/bin/tritonserver", "--model-repository=/m"}}, "tritonserver"},
+		{"python module", corev1.Container{Image: "x", Command: []string{"python3", "-m", "vllm.entrypoints.openai.api_server"}}, "vllm"},
+		{"sglang module", corev1.Container{Image: "x", Command: []string{"python", "-m", "sglang.launch_server"}}, "sglang"},
+		{"shell exec", corev1.Container{Image: "x", Command: []string{"sh", "-c", "exec ollama serve"}}, "ollama"},
+		{"shell chain", corev1.Container{Image: "x", Command: []string{"sh", "-c"}, Args: []string{"cd /srv && text-generation-launcher --port 80"}}, "text-generation-inference"},
+		{"tei router", corev1.Container{Image: "x", Command: []string{"text-embeddings-router"}}, "text-embeddings-inference"},
+		{"value only", corev1.Container{Image: "x", Args: []string{"--backend", "vllm"}}, ""},
+		{"url", corev1.Container{Image: "x", Command: []string{"curl", "http://vllm:8000/health"}}, ""},
+		{"image wins", corev1.Container{Image: "vllm/vllm-openai", Command: []string{"sleep", "1"}}, "vllm"},
+	}
+	for _, tt := range tests {
+		if got := Engine(tt.c); got != tt.want {
+			t.Errorf("%s: Engine = %q, want %q", tt.name, got, tt.want)
+		}
+	}
+}

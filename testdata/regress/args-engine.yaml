@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: llm-gateway
+  namespace: llm
+spec:
+  selector:
+    matchLabels:
+      app: llm-gateway
+  template:
+    metadata:
+      labels:
+        app: llm-gateway
+    spec:
+      containers:
+        - name: runtime
+          image: registry.example.com/platform/llm-runtime:1.0
+          command: ["vllm", "serve", "mistralai/Mistral-7B-Instruct-v0.2"]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: qa
+  namespace: llm
+spec:
+  selector:
+    matchLabels:
+      app: qa
+  template:
+    metadata:
+      labels:
+        app: qa
+    spec:
+      containers:
+        - name: runtime
+          image: registry.example.com/platform/python:3.12
+          command: ["/bin/sh", "-c"]
+          args: ["cd /srv && python -m vllm.entrypoints.openai.api_server --model m --trust-remote-code"]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+  namespace: llm
+spec:
+  selector:
+    matchLabels:
+      app: web
+  template:
+    metadata:
+      labels:
+        app: web
+    spec:
+      containers:
+        - name: web
+          image: registry.example.com/platform/web:1.0
+          args: ["--backend", "vllm", "--served-model-name", "vllm"]
