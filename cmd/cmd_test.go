@@ -532,3 +532,16 @@ func TestScanWarnsAboutMissingEnforceLabel(t *testing.T) {
 		t.Errorf("invalid selector: code=%d stderr=%q", code, stderr)
 	}
 }
+
+func TestScanJSONIncludesSource(t *testing.T) {
+	stdout, _, _ := run(t, "scan", "--path", offendingDir, "--json")
+	var fs []checks.Finding
+	if err := json.Unmarshal([]byte(stdout), &fs); err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range fs {
+		if !strings.HasSuffix(filepath.ToSlash(f.Source), "bad.yaml") {
+			t.Fatalf("source = %q for %+v", f.Source, f)
+		}
+	}
+}

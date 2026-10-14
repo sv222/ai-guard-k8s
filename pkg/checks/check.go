@@ -16,12 +16,13 @@ type Finding struct {
 	Name      string `json:"name"`
 	Evidence  string `json:"evidence"`
 	Hint      string `json:"hint"`
+	Source    string `json:"source,omitempty"`
 }
 
 type CheckFunc func(w target.WorkloadTarget) []Finding
 
 func (f Finding) on(w target.WorkloadTarget) Finding {
-	f.Kind, f.Namespace, f.Name = w.Kind, w.Namespace, w.Name
+	f.Kind, f.Namespace, f.Name, f.Source = w.Kind, w.Namespace, w.Name, w.Source
 	return f
 }
 

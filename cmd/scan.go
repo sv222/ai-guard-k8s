@@ -80,7 +80,7 @@ func newScanCmd(kubeconfig *string) *cobra.Command {
 	c.Flags().BoolVar(&cluster, "cluster", false, "also scan the live cluster when --path is set")
 	c.Flags().BoolVar(&asJSON, "json", false, "JSON output")
 	c.Flags().StringVar(&selector, "workload-selector", "", "extra label selector marking AI workloads, for example tier=inference")
-	c.Flags().StringVarP(&namespace, "namespace", "n", "", "cluster namespace (empty = all)")
+	c.Flags().StringVarP(&namespace, "namespace", "n", "", "cluster namespace (empty = all); not used with --path")
 	c.Flags().StringVar(&failOn, "fail-on", "low", "lowest severity that makes the exit code 1: low, medium or high")
 	c.Flags().StringVar(&enforceSel, "enforce-selector", selpkg.DefaultEnforce, "label selector that ai-guard enforce uses; AI workloads whose pod template lacks it get a warning (empty = no warning)")
 	c.Flags().BoolVar(&lenient, "lenient", false, "with --path, do not fail when some files cannot be decoded (they are still listed as warnings)")

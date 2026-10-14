@@ -61,7 +61,7 @@ With Go, or from source:
 
     ai-guard scan --path manifests/            # files only, no cluster access
     ai-guard scan                              # live cluster from kubeconfig or KUBECONFIG
-    ai-guard scan -n llm                       # one namespace
+    ai-guard scan -n llm                       # one namespace (cluster scan only; --path ignores -n)
     ai-guard scan --path manifests/ --cluster  # files and cluster together
     ai-guard scan --path manifests/ --json     # JSON output
 
@@ -79,13 +79,13 @@ With `--path`, a file or document that cannot be decoded (broken YAML, wrong fie
 
 ## What it checks
 
-A workload counts as AI inference if its name or an image contains `vllm`, `ollama`, `tritonserver`, `text-generation-inference`, `tgi` (whole word only), `ray-serve`, `text-embeddings-inference`, `local-ai`, `localai`, `sglang`, `llama.cpp`, `llama-cpp`, `lmdeploy` or `tensorrt-llm`. A container whose `command` or `args` start an engine also counts, for example `vllm serve`, `python -m vllm.entrypoints...` or `exec ollama serve`. You can also set the label or annotation `ai.infra.guard/enabled: "true"`, or pass `--workload-selector tier=inference`.
+A workload counts as AI inference if its name or an image contains `vllm`, `ollama`, `tritonserver`, `text-generation-inference`, `tgi` (whole word only), `ray-serve` (also a `ray` or `rayproject/ray` image whose command contains `serve`), `text-embeddings-inference`, `local-ai`, `localai`, `sglang`, `llama.cpp`, `llama-cpp`, `lmdeploy` or `tensorrt-llm`. A container whose `command` or `args` start an engine also counts, for example `vllm serve`, `python -m vllm.entrypoints...` or `exec ollama serve`. You can also set the label or annotation `ai.infra.guard/enabled: "true"`, or pass `--workload-selector tier=inference`.
 
 | ID | Risk | Severity | How it is detected | Fix | Maps to |
 |---|---|---|---|---|---|
 | AIG-001 | No auth on the engine | High (vLLM), Medium (others) | No `--api-key` arg, no env var the engine reads (vLLM: `VLLM_API_KEY`; Text Embeddings Inference: `API_KEY`; llama.cpp: `LLAMA_API_KEY`; LocalAI: `LOCALAI_API_KEY` or `API_KEY`; other engines: none), and no `envFrom` Secret named like api-key, api-token, auth or bearer (names with hf, aws, s3, registry or tls do not count) | Set an API key, or annotate `ai.infra.guard/gateway-auth: "true"` if a gateway authenticates | - |
 | AIG-002 | Debug or insecure endpoint | Medium | `--debug`, `--allow-http`, or `OLLAMA_DEBUG` set to `true` or `1` | Remove it | - |
-| AIG-003 | Host namespaces | High | `hostNetwork` or `hostPID` is true | Set both to false | PSS Baseline: Host Namespaces (`hostIPC` is not checked) |
+| AIG-003 | Host namespaces | High | `hostNetwork`, `hostPID` or `hostIPC` is true | Set them to false | PSS Baseline: Host Namespaces |
 | AIG-004 | `hostPath` volume | High | Any `hostPath` volume | Use a PVC or `emptyDir` | PSS Baseline: HostPath Volumes |
 | AIG-005 | Root, privileged, privilege escalation | High | Effective `runAsUser: 0`, `runAsNonRoot` not `true`, `privileged: true`, `allowPrivilegeEscalation` unset or true | Set `runAsNonRoot: true`, `privileged: false`, `allowPrivilegeEscalation: false` | PSS Restricted: Running as Non-root, Running as Non-root user, Privilege Escalation. Baseline: Privileged Containers |
 | AIG-006 | Seccomp missing or `Unconfined` | Medium | Effective `seccompProfile` is unset or `Unconfined` | Set `RuntimeDefault` | PSS Restricted: Seccomp |
@@ -94,7 +94,7 @@ A workload counts as AI inference if its name or an image contains `vllm`, `olla
 | AIG-009 | No ingress isolation | Medium | No NetworkPolicy selects the pod and restricts ingress. A rule counts as open when it has no `from`, a peer with an empty `namespaceSelector`, an empty peer, or `0.0.0.0/0` or `::/0` without `except`. `ports` alone do not restrict who can connect. Egress is judged separately and not by this check (the Cilium policy from `ai-guard enforce` covers it) | Default-deny ingress plus an allowlist of peers (see `ai-guard enforce`) | - |
 | AIG-010 | Exposed by `LoadBalancer`, `NodePort` or Ingress | High | A Service of that type selects the workload, or an Ingress routes to a Service that does, and no auth evidence exists. Ingress auth annotations (`auth-url`, `auth-type`, `auth-signin`, `auth-secret`, `oauth2`) or `ai.infra.guard/gateway-auth: "true"` on the Ingress count as auth | Add auth, use the gateway annotation, or use an internal Service | - |
 
-Helm test hook pods (`helm.sh/hook: test`) are skipped. If you opt in a pod with one container and no engine is recognized, that container gets the engine checks (AIG-001, AIG-002, AIG-008). AIG-005, AIG-006 and AIG-007 also cover init containers. Container settings override pod settings. There is no inline ignore comment. To silence a check, fix the cause.
+Helm test hook pods (`helm.sh/hook: test`) are skipped, and `scan` prints a warning for each skipped AI workload. This annotation works like an ignore switch: whoever can set it on a workload hides that workload from the scan, so review it in CI. If you opt in a pod with one container and no engine is recognized, that container gets the engine checks (AIG-001, AIG-002, AIG-008). AIG-005, AIG-006 and AIG-007 also cover init containers. Container settings override pod settings. There is no inline ignore comment. To silence a check, fix the cause.
 
 PSS means [Pod Security Standards](https://kubernetes.io/docs/concepts/security/pod-security-standards/). The mapping shows which control covers the same setting. It does not mean ai-guard is a PSS validator. The OWASP and ATLAS IDs are references for AIG-008 only.
 
@@ -106,6 +106,8 @@ This writes four files. The default output is also in [`policies/`](policies/).
 
 - `aig-require-nonroot.yaml`, `aig-block-host-access.yaml`, `aig-require-resources.yaml`: Kyverno `ClusterPolicy`.
 - `aig-cilium-egress-fqdn.yaml`: `CiliumClusterwideNetworkPolicy` that allows DNS and model download hosts only. It selects labeled pods in every namespace, including `kube-system`. With `-n llm` it is a namespaced `CiliumNetworkPolicy` in `llm` instead.
+
+`enforce --out` overwrites files with the same names but refuses to write through a symlink or over a special file.
 
 Policies select pods with the label `ai.infra.guard/enabled: "true"`. Change this with `--selector team=llm,tier=gpu`. They skip `kube-system`, `kube-public` and `kube-node-lease`.
 
@@ -222,7 +224,7 @@ Not tested:
 - The Cilium policy and egress limits. The example NetworkPolicy covers ingress only, because model download needs egress.
 - Kyverno Audit mode with the background controller and policy reports. Only the admission controller ran.
 - Other CNIs, other Kubernetes versions, Helm charts and Ingress.
-- The Kyverno policies do not check seccomp or `readOnlyRootFilesystem`. AIG-006 covers seccomp in `scan` only.
+- The Kyverno policies do not check seccomp, `readOnlyRootFilesystem` or ephemeral containers. AIG-006 covers seccomp in `scan` only. They cover `hostNetwork`, `hostPID`, `hostIPC`, `hostPort` (containers and init containers), `hostPath`, and requests and limits on init containers too. `scripts/kyverno-check.sh` runs them against `testdata/kyverno/pods.yaml` with the Kyverno CLI.
 
 vLLM routes outside `/v1` are not behind the key. In this test `/health`, `/metrics`, `/version` and `/ping` answered 200 without a key, and `/tokenize` answered 405 (not 401) to an unauthenticated GET. This matches the vLLM security docs.
 
@@ -253,7 +255,7 @@ Known gaps from this run:
 ## Roadmap
 
 - Read Helm charts and Kustomize overlays directly.
-- Check more engine settings, for example `hostIPC`, capabilities and Gateway API routes.
+- Check more engine settings, for example `hostPort`, capabilities and Gateway API routes.
 - Test Cilium FQDN egress with real inference containers.
 - Generate Kyverno rules that reject Deployments and other pod controllers, not only their pods.
 - SARIF output for GitHub code scanning.

@@ -184,6 +184,7 @@ func TestPodSpecChecks(t *testing.T) {
 		{"003 hostNetwork", pod(func(p *corev1.PodSpec) { p.HostNetwork = true }), "AIG-003", 1},
 		{"003 hostPID", pod(func(p *corev1.PodSpec) { p.HostPID = true }), "AIG-003", 1},
 		{"003 both", pod(func(p *corev1.PodSpec) { p.HostNetwork, p.HostPID = true, true }), "AIG-003", 2},
+		{"003 hostIPC", pod(func(p *corev1.PodSpec) { p.HostIPC = true }), "AIG-003", 1},
 		{"003 clean", func(*target.WorkloadTarget) {}, "AIG-003", 0},
 
 		{"004 hostPath", pod(func(p *corev1.PodSpec) {

@@ -2,6 +2,7 @@ package scanner
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/sv222/ai-guard-k8s/pkg/target"
@@ -150,5 +151,15 @@ func TestRegressIngressExposure(t *testing.T) {
 	}
 	if got["ollama-open"] != 1 || got["ollama-authed"] != 0 || got["ollama-internal"] != 0 {
 		t.Errorf("AIG-010 by workload = %v, want only ollama-open", got)
+	}
+}
+
+func TestRegressHelmTestHookIsReportedAsWarning(t *testing.T) {
+	res, err := Scan(context.Background(), Options{Path: regress + "/helm-test-hook.yaml"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Findings) != 0 || len(res.Warnings) != 1 || !strings.Contains(res.Warnings[0], "helm.sh/hook") {
+		t.Errorf("findings=%v warnings=%v", res.Findings, res.Warnings)
 	}
 }

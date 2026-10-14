@@ -90,7 +90,11 @@ func AnalyzeWith(ds target.DirScan, extraSelector, enforceSelector string) ([]ch
 	var out []checks.Finding
 	var warnings []string
 	for _, w := range ds.Targets {
-		if w.IsHelmTestHook() || !detect.IsAIWorkload(w, extraSelector) {
+		if !detect.IsAIWorkload(w, extraSelector) {
+			continue
+		}
+		if w.IsHelmTestHook() {
+			warnings = append(warnings, fmt.Sprintf("%s %s/%s skipped: it has the annotation helm.sh/hook with a test hook", w.Kind, w.Namespace, w.Name))
 			continue
 		}
 		w.OptIn = detect.OptedIn(w, extraSelector)

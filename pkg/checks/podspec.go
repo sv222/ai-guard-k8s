@@ -96,6 +96,10 @@ func aig003(w target.WorkloadTarget) []Finding {
 		out = append(out, Finding{ID: "AIG-003", Title: "hostPID enabled", Severity: "High",
 			Evidence: "spec.hostPID: true", Hint: "disable hostPID"}.on(w))
 	}
+	if w.PodSpec.HostIPC {
+		out = append(out, Finding{ID: "AIG-003", Title: "hostIPC enabled", Severity: "High",
+			Evidence: "spec.hostIPC: true", Hint: "disable hostIPC"}.on(w))
+	}
 	return out
 }
 

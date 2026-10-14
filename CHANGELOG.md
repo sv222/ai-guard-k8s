@@ -14,6 +14,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- JSON findings carry a `source` field with the file the workload came from (`cluster` for live objects). Duplicate findings from several sources are still reported once, with the first source.
+- `scan` prints a warning for AI workloads skipped by the `helm.sh/hook: test` rule.
+- Ray Serve is detected from `rayproject/ray` and similar images when the command contains `serve`.
+- AIG-003 also reports `hostIPC: true`.
+- `scripts/kyverno-check.sh` checks the Kyverno policies with the Kyverno CLI.
 - `enforce --restrict-dns` limits the Cilium DNS rule to the allowed host names. The default stays `matchPattern: "*"`.
 - `scan` warns when an AI workload lacks the `enforce` label on its pod template, because the generated policies would skip its pods. The warning does not change the exit code. `--enforce-selector` sets the label to look for (default `ai.infra.guard/enabled=true`); an empty value turns the warning off.
 - ReplicaSets, ReplicationControllers and Argo Rollouts are scanned. Cluster scans list ReplicaSets that are not owned by a Deployment and ReplicationControllers (skipped at 0 replicas), which also makes Rollout pods visible. Manifests accept `kind: ReplicaSet`, `ReplicationController` and `Rollout` (`argoproj.io`). The cluster scan now needs list access to `replicasets` and `replicationcontrollers`.
@@ -24,6 +29,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- The Kyverno policies also block `hostIPC` and `hostPort`, and the resources policy checks init containers like AIG-007. Ephemeral containers are not covered.
+- `enforce --out` refuses to write through a symlink or over a special file.
 - `--allow-fqdn` rejects `*.com`, `*.*`, wildcards inside a label and names with invalid labels. A wildcard must be the whole leftmost label and needs at least two fixed labels after it.
 - `scan --path` follows no symlinks, skips special files (a named pipe no longer blocks the scan) and skips files larger than 10 MB. A YAML alias bomb is rejected by the decoder; a test covers it.
 - `scan --path` exited with 0 and printed "No findings." when files could not be decoded (raw Helm templates, a Deployment with a wrong field type) or when the path had no Kubernetes object. It now exits with 2 and says why.
