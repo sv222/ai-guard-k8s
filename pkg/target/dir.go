@@ -281,3 +281,9 @@ func orDefault(s, def string) string {
 	}
 	return s
 }
+
+func FromBytes(data []byte, source string) DirScan {
+	var out DirScan
+	consumeFile(&out, data, source)
+	return out
+}
