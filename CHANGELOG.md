@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- AIG-010 also reports workloads exposed through an Ingress that routes to a Service selecting them. Ingress auth annotations and `ai.infra.guard/gateway-auth: "true"` on the Ingress count as auth evidence. Cluster scans list Ingresses; a permission error gives a warning instead of failing the scan.
+
 ### Fixed
 
 - `envFrom` Secret names count as auth evidence for AIG-001 only when they contain api-key, api-token, auth or bearer. Names such as `hf-token`, `aws-credentials` and `registry-auth` no longer hide a missing API key. Names with only `key` or `token` (for example `vllm-key`) no longer count.

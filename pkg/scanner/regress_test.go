@@ -136,3 +136,19 @@ func TestRegressEnvFromTokenSecretIsNotEngineAuth(t *testing.T) {
 		t.Errorf("AIG-001 by workload = %v, want vllm-hf 1 and vllm-keyed 0", got)
 	}
 }
+
+func TestRegressIngressExposure(t *testing.T) {
+	res, err := Scan(context.Background(), Options{Path: regress + "/ingress-exposure.yaml"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]int{}
+	for _, f := range res.Findings {
+		if f.ID == "AIG-010" {
+			got[f.Name]++
+		}
+	}
+	if got["ollama-open"] != 1 || got["ollama-authed"] != 0 || got["ollama-internal"] != 0 {
+		t.Errorf("AIG-010 by workload = %v, want only ollama-open", got)
+	}
+}

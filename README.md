@@ -90,7 +90,7 @@ A workload counts as AI inference if its name or an image contains `vllm`, `olla
 | AIG-007 | No resource requests or limits | Low | Missing `requests.memory`, `requests.cpu` or `limits.memory` | Set them | - |
 | AIG-008 | Unsafe model execution | High (Medium for `s3://`, `gs://`) | `--trust-remote-code`; model args or env ending in `.bin`, `.pt`, `.pth`, `.pkl`, `.pickle`, `.ckpt`; `s3://` or `gs://` sources | Remove the flag, use SafeTensors, pin model provenance | OWASP LLM03:2025 Supply Chain; MITRE ATLAS AML.T0010 AI Supply Chain Compromise |
 | AIG-009 | No NetworkPolicy isolation | Medium | No NetworkPolicy selects the pod and restricts traffic, or the policy allows all | Default-deny plus an allowlist (see `ai-guard enforce`) | - |
-| AIG-010 | Exposed by `LoadBalancer` or `NodePort` | High | A Service of that type selects the workload and no auth evidence exists | Add auth, use the gateway annotation, or use an internal Service | - |
+| AIG-010 | Exposed by `LoadBalancer`, `NodePort` or Ingress | High | A Service of that type selects the workload, or an Ingress routes to a Service that does, and no auth evidence exists. Ingress auth annotations (`auth-url`, `auth-type`, `auth-signin`, `auth-secret`, `oauth2`) or `ai.infra.guard/gateway-auth: "true"` on the Ingress count as auth | Add auth, use the gateway annotation, or use an internal Service | - |
 
 Helm test hook pods (`helm.sh/hook: test`) are skipped. If you opt in a pod with one container and no engine is recognized, that container gets the engine checks (AIG-001, AIG-002, AIG-008). AIG-005, AIG-006 and AIG-007 also cover init containers. Container settings override pod settings. There is no inline ignore comment. To silence a check, fix the cause.
 
@@ -181,7 +181,7 @@ Not verified:
 ## Roadmap
 
 - Read Helm charts and Kustomize overlays directly.
-- Check more engine settings, for example `hostIPC`, capabilities and exposed Ingress.
+- Check more engine settings, for example `hostIPC`, capabilities and Gateway API routes.
 - Test the generated policies with real inference containers and Cilium FQDN egress.
 - SARIF output for GitHub code scanning.
 

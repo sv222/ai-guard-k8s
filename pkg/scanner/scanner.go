@@ -52,6 +52,7 @@ func Scan(ctx context.Context, o Options) (Result, error) {
 		if err != nil {
 			return res, fmt.Errorf("cluster scan: %w", err)
 		}
+		res.Warnings = append(res.Warnings, ds.Warnings...)
 		all = append(all, Analyze(ds, o.Selector)...)
 	}
 	res.Findings = dedupe(all)
@@ -59,7 +60,7 @@ func Scan(ctx context.Context, o Options) (Result, error) {
 }
 
 func Analyze(ds target.DirScan, selector string) []checks.Finding {
-	ctx := checks.ScanContext{NetPols: ds.NetPols, Services: ds.Services}
+	ctx := checks.ScanContext{NetPols: ds.NetPols, Services: ds.Services, Ingresses: ds.Ingresses}
 	var out []checks.Finding
 	for _, w := range ds.Targets {
 		if w.IsHelmTestHook() || !detect.IsAIWorkload(w, selector) {

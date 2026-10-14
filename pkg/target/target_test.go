@@ -2,6 +2,7 @@ package target
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,8 +11,13 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	netv1 "k8s.io/api/networking/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/kubernetes/fake"
+	k8stesting "k8s.io/client-go/testing"
 )
 
 func TestFromDirExtractsWorkload(t *testing.T) {
@@ -293,5 +299,88 @@ func TestFromClientsetCronJob(t *testing.T) {
 	if len(ds.Targets) != 1 || ds.Targets[0].Kind != "CronJob" || ds.Targets[0].Name != "ollama-batch" ||
 		ds.Targets[0].Labels["app"] != "ollama" {
 		t.Errorf("targets = %+v", ds.Targets)
+	}
+}
+
+func TestFromDirIngress(t *testing.T) {
+	dir := t.TempDir()
+	manifest := `apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: web
+  namespace: llm
+  annotations:
+    nginx.ingress.kubernetes.io/auth-url: https://auth/check
+spec:
+  defaultBackend:
+    service:
+      name: fallback
+      port:
+        number: 80
+  rules:
+    - host: a.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: svc
+                port:
+                  number: 80
+          - path: /again
+            pathType: Prefix
+            backend:
+              service:
+                name: svc
+                port:
+                  number: 80
+    - host: b.example.com
+`
+	if err := os.WriteFile(filepath.Join(dir, "i.yaml"), []byte(manifest), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	ds, err := FromDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ds.Ingresses) != 1 {
+		t.Fatalf("ingresses = %+v", ds.Ingresses)
+	}
+	got := ds.Ingresses[0]
+	if got.Namespace != "llm" || got.Name != "web" || len(got.Services) != 2 || got.Services[0] != "fallback" || got.Services[1] != "svc" ||
+		got.Annotations["nginx.ingress.kubernetes.io/auth-url"] == "" {
+		t.Errorf("ingress = %+v", got)
+	}
+}
+
+func TestFromClientsetIngress(t *testing.T) {
+	pt := netv1.PathTypePrefix
+	cs := fake.NewSimpleClientset(&netv1.Ingress{
+		ObjectMeta: metav1.ObjectMeta{Name: "web", Namespace: "llm"},
+		Spec: netv1.IngressSpec{Rules: []netv1.IngressRule{{IngressRuleValue: netv1.IngressRuleValue{HTTP: &netv1.HTTPIngressRuleValue{
+			Paths: []netv1.HTTPIngressPath{{Path: "/", PathType: &pt, Backend: netv1.IngressBackend{Service: &netv1.IngressServiceBackend{Name: "svc"}}}},
+		}}}}},
+	})
+	ds, err := FromClientset(context.Background(), cs, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ds.Ingresses) != 1 || ds.Ingresses[0].Services[0] != "svc" {
+		t.Errorf("ingresses = %+v", ds.Ingresses)
+	}
+}
+
+func TestFromClientsetIngressForbiddenIsAWarning(t *testing.T) {
+	cs := fake.NewSimpleClientset()
+	cs.PrependReactor("list", "ingresses", func(k8stesting.Action) (bool, runtime.Object, error) {
+		return true, nil, apierrors.NewForbidden(schema.GroupResource{Group: "networking.k8s.io", Resource: "ingresses"}, "", errors.New("denied"))
+	})
+	ds, err := FromClientset(context.Background(), cs, "")
+	if err != nil {
+		t.Fatalf("forbidden Ingress list must not fail the scan: %v", err)
+	}
+	if len(ds.Warnings) != 1 || !strings.Contains(ds.Warnings[0], "Ingresses") {
+		t.Errorf("warnings = %v", ds.Warnings)
 	}
 }

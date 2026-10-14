@@ -140,6 +140,12 @@ func consumeObject(out *DirScan, raw []byte, source string) error {
 		out.NetPols = append(out.NetPols, NetworkPolicyEntry{
 			Namespace: orDefault(o.Namespace, "default"), Name: o.Name, Spec: o.Spec,
 		})
+	case "Ingress":
+		var o netv1.Ingress
+		if err := decodeInto(raw, &o); err != nil {
+			return err
+		}
+		out.Ingresses = append(out.Ingresses, ingressEntry(o))
 	case "Service":
 		var o corev1.Service
 		if err := decodeInto(raw, &o); err != nil {
@@ -167,6 +173,30 @@ func serviceEntry(o corev1.Service) ServiceEntry {
 	return ServiceEntry{
 		Namespace: orDefault(o.Namespace, "default"), Name: o.Name,
 		Type: string(o.Spec.Type), Selector: o.Spec.Selector, Ports: ports,
+	}
+}
+
+func ingressEntry(o netv1.Ingress) IngressEntry {
+	var names []string
+	seen := map[string]bool{}
+	add := func(b *netv1.IngressBackend) {
+		if b != nil && b.Service != nil && !seen[b.Service.Name] {
+			seen[b.Service.Name] = true
+			names = append(names, b.Service.Name)
+		}
+	}
+	add(o.Spec.DefaultBackend)
+	for _, r := range o.Spec.Rules {
+		if r.HTTP == nil {
+			continue
+		}
+		for i := range r.HTTP.Paths {
+			add(&r.HTTP.Paths[i].Backend)
+		}
+	}
+	return IngressEntry{
+		Namespace: orDefault(o.Namespace, "default"), Name: o.Name,
+		Annotations: o.Annotations, Services: names,
 	}
 }
 

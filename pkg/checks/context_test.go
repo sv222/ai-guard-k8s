@@ -163,3 +163,43 @@ func TestAIG010(t *testing.T) {
 		})
 	}
 }
+
+func TestAIG010Ingress(t *testing.T) {
+	svc := []target.ServiceEntry{{Namespace: "llm", Name: "svc", Type: "ClusterIP", Selector: map[string]string{"app": "vllm"}, Ports: []int32{80}}}
+	ing := func(ann map[string]string, services ...string) []target.IngressEntry {
+		return []target.IngressEntry{{Namespace: "llm", Name: "web", Annotations: ann, Services: services}}
+	}
+	tests := []struct {
+		name string
+		w    target.WorkloadTarget
+		ings []target.IngressEntry
+		want bool
+	}{
+		{"routed to the service", aiWorkload(map[string]string{"app": "vllm"}), ing(nil, "svc"), true},
+		{"other service", aiWorkload(map[string]string{"app": "vllm"}), ing(nil, "other"), false},
+		{"other namespace", aiWorkload(map[string]string{"app": "vllm"}), []target.IngressEntry{{Namespace: "x", Name: "web", Services: []string{"svc"}}}, false},
+		{"nginx auth-url", aiWorkload(map[string]string{"app": "vllm"}), ing(map[string]string{"nginx.ingress.kubernetes.io/auth-url": "https://auth/check"}, "svc"), false},
+		{"nginx basic auth", aiWorkload(map[string]string{"app": "vllm"}), ing(map[string]string{"nginx.ingress.kubernetes.io/auth-type": "basic"}, "svc"), false},
+		{"gateway annotation on ingress", aiWorkload(map[string]string{"app": "vllm"}), ing(map[string]string{GatewayAuthKey: "true"}, "svc"), false},
+		{"unrelated annotation", aiWorkload(map[string]string{"app": "vllm"}), ing(map[string]string{"nginx.ingress.kubernetes.io/rewrite-target": "/"}, "svc"), true},
+		{"engine api key", func() target.WorkloadTarget {
+			w := aiWorkload(map[string]string{"app": "vllm"})
+			w.PodSpec.Containers[0].Args = []string{"--api-key", "k"}
+			return w
+		}(), ing(nil, "svc"), false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fs := RunContextChecks(tt.w, ScanContext{Services: svc, Ingresses: tt.ings})
+			var got bool
+			for _, f := range fs {
+				if f.ID == "AIG-010" && strings.Contains(f.Title, "Ingress") {
+					got = true
+				}
+			}
+			if got != tt.want {
+				t.Errorf("AIG-010 via Ingress = %v, want %v (%+v)", got, tt.want, fs)
+			}
+		})
+	}
+}

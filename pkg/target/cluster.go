@@ -3,6 +3,7 @@ package target
 import (
 	"context"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
@@ -123,6 +124,17 @@ func FromClientset(ctx context.Context, cs kubernetes.Interface, namespace strin
 	}
 	for _, o := range svcs.Items {
 		out.Services = append(out.Services, serviceEntry(o))
+	}
+	ings, err := cs.NetworkingV1().Ingresses(namespace).List(ctx, opt)
+	switch {
+	case apierrors.IsForbidden(err):
+		out.Warnings = append(out.Warnings, "cannot list Ingresses: "+err.Error())
+	case err != nil:
+		return out, err
+	default:
+		for _, o := range ings.Items {
+			out.Ingresses = append(out.Ingresses, ingressEntry(o))
+		}
 	}
 	return out, nil
 }

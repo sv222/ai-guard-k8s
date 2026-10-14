@@ -65,9 +65,16 @@ type ServiceEntry struct {
 	Ports                 []int32
 }
 
+type IngressEntry struct {
+	Namespace, Name string
+	Annotations     map[string]string
+	Services        []string
+}
+
 type DirScan struct {
-	Targets  []WorkloadTarget
-	NetPols  []NetworkPolicyEntry
-	Services []ServiceEntry
-	Warnings []string
+	Targets   []WorkloadTarget
+	NetPols   []NetworkPolicyEntry
+	Services  []ServiceEntry
+	Ingresses []IngressEntry
+	Warnings  []string
 }

@@ -13,9 +13,12 @@ import (
 
 const GatewayAuthKey = "ai.infra.guard/gateway-auth"
 
+var ingressAuthHints = []string{"auth-url", "auth-type", "auth-signin", "auth-secret", "oauth2"}
+
 type ScanContext struct {
-	NetPols  []target.NetworkPolicyEntry
-	Services []target.ServiceEntry
+	NetPols   []target.NetworkPolicyEntry
+	Services  []target.ServiceEntry
+	Ingresses []target.IngressEntry
 }
 
 func RunContextChecks(w target.WorkloadTarget, ctx ScanContext) []Finding {
@@ -38,7 +41,37 @@ func RunContextChecks(w target.WorkloadTarget, ctx ScanContext) []Finding {
 				Hint:     "add engine auth (--api-key), or require auth at a gateway and annotate the workload " + GatewayAuthKey + ": \"true\", or use an internal Service"}.on(w))
 		}
 	}
+	for _, ing := range ctx.Ingresses {
+		if ing.Namespace != w.Namespace || ingressHasAuth(ing.Annotations) {
+			continue
+		}
+		for _, name := range ing.Services {
+			for _, s := range ctx.Services {
+				if s.Namespace != w.Namespace || s.Name != name || !selectorSubset(s.Selector, w.Labels) {
+					continue
+				}
+				out = append(out, Finding{ID: "AIG-010", Title: "inference exposed via Ingress", Severity: "High",
+					Evidence: "Ingress " + ing.Name + " routes to Service " + s.Name + " which selects this workload and no auth evidence was found",
+					Hint:     "add engine auth (--api-key), or add auth at the Ingress, or annotate the workload " + GatewayAuthKey + ": \"true\" if a gateway authenticates"}.on(w))
+			}
+		}
+	}
 	return out
+}
+
+func ingressHasAuth(ann map[string]string) bool {
+	if ann[GatewayAuthKey] == "true" {
+		return true
+	}
+	for k := range ann {
+		k = strings.ToLower(k)
+		for _, hint := range ingressAuthHints {
+			if strings.Contains(k, hint) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func hasGatewayAuth(w target.WorkloadTarget) bool {

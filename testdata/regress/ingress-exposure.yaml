@@ -1,0 +1,124 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ollama-open
+  namespace: llm
+spec:
+  selector:
+    matchLabels:
+      app: ollama-open
+  template:
+    metadata:
+      labels:
+        app: ollama-open
+    spec:
+      containers:
+        - name: server
+          image: ollama/ollama:0.40.3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ollama-open
+  namespace: llm
+spec:
+  selector:
+    app: ollama-open
+  ports:
+    - port: 11434
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ollama-open
+  namespace: llm
+spec:
+  rules:
+    - host: ollama-open.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: ollama-open
+                port:
+                  number: 11434
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ollama-authed
+  namespace: llm
+spec:
+  selector:
+    matchLabels:
+      app: ollama-authed
+  template:
+    metadata:
+      labels:
+        app: ollama-authed
+    spec:
+      containers:
+        - name: server
+          image: ollama/ollama:0.40.3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ollama-authed
+  namespace: llm
+spec:
+  selector:
+    app: ollama-authed
+  ports:
+    - port: 11434
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ollama-authed
+  namespace: llm
+  annotations:
+    nginx.ingress.kubernetes.io/auth-url: "https://auth.example.com/check"
+spec:
+  rules:
+    - host: ollama-authed.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: ollama-authed
+                port:
+                  number: 11434
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ollama-internal
+  namespace: llm
+spec:
+  selector:
+    matchLabels:
+      app: ollama-internal
+  template:
+    metadata:
+      labels:
+        app: ollama-internal
+    spec:
+      containers:
+        - name: server
+          image: ollama/ollama:0.40.3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ollama-internal
+  namespace: llm
+spec:
+  selector:
+    app: ollama-internal
+  ports:
+    - port: 11434
