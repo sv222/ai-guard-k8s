@@ -170,6 +170,23 @@ Not verified:
 - Cilium DNS-based (FQDN) egress could not be demonstrated in the kind test environment. The policy is accepted, but allow and deny behavior for real hosts is untested.
 - The tests used small stand-in images, not real vLLM or Ollama containers.
 
+### Tested on real Helm charts
+
+On 2026-10-14 the scanner ran on 36 value sets rendered with `helm template` 4.3.0 from 22 public charts. Charts, versions and value files are pinned in `testdata/corpus/charts.txt`. Re-run with `scripts/corpus.sh` (see [CONTRIBUTING.md](CONTRIBUTING.md)).
+
+Charts: vLLM production-stack `vllm-stack` 0.1.13, vLLM `examples/deployment/chart-helm` (commit be4ce2e), otwld `ollama` 1.88.0, InfraCloud `ollama` 0.1.1, `text-generation-inference` 0.3.0, `text-embeddings-inference` 0.3.0 and `vllm` 0.4.1, Substratus `text-generation-inference` 0.1.1 and `vllm` 0.5.5, Arktec `vllm` 1.0.7 and `ollama` 1.0.8, Triton `deploy/gcp`, `aws`, `oci` and `k8s-onprem` (commit 21ff65d), KubeAI 0.24.0, Open WebUI 17.0.0 with its Ollama subchart, LocalAI 3.4.2, KubeRay operator and `ray-cluster` 1.7.1, KServe v0.15.0 and LiteLLM 1.105.1. Most have a default set and one or two variants with a GPU, a LoadBalancer or Ingress, or auth settings.
+
+I read every finding of v0.2.0 (212) against the rendered manifest. Precision (true positives divided by true and false positives): AIG-001 100%, AIG-005 71%, AIG-006 72%, AIG-007 67%, AIG-008 100%, AIG-009 70%, AIG-010 73%, all checks 74%. Seven findings are debatable (a download Job matched by name; `s3://` and `gs://` model stores that are the operator's own bucket). With them counted as wrong, all checks score 72%.
+
+Nearly all false positives (53 findings) came from Helm test pods that were matched by name. Three detection gaps showed up: Text Embeddings Inference and LocalAI were not recognized, and an engine exposed only through an Ingress got no AIG-010. These are fixed in the Unreleased changes. On the same charts the fixed build gives 191 findings with no false positives. That number is not an independent test, because the fixes were made from this corpus.
+
+Known gaps from this run:
+
+- Custom resources are not read. `RayCluster`, `RayService`, KServe `InferenceService` and `ClusterServingRuntime`, and KubeAI `Model` render no Deployment, so nothing is scanned. Only generated Deployments are seen.
+- Routers and gateways in front of engines (the production-stack router, the KubeAI proxy) are not recognized as AI workloads, so their exposure is not reported.
+- Engines with no native auth (Ollama, TGI, Triton) still count as authenticated if the container has an `API_KEY` or `OPENAI_API_KEY` env.
+- Values are chart defaults plus the small variants in the corpus. Real deployments set other values.
+
 ### Known limitations
 
 - Checks are static heuristics on Kubernetes objects. They do not see runtime behavior.
