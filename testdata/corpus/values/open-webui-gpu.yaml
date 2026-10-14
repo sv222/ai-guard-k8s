@@ -1,0 +1,11 @@
+ollama:
+  enabled: true
+  ollama:
+    gpu:
+      enabled: true
+      number: 1
+service:
+  type: LoadBalancer
+ingress:
+  enabled: true
+  host: webui.example.com

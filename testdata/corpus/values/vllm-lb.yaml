@@ -1,0 +1,7 @@
+service:
+  type: LoadBalancer
+resources:
+  limits:
+    nvidia.com/gpu: 1
+args:
+  - "--trust-remote-code"

@@ -1,0 +1,41 @@
+# id|type|source|chart|version|values
+# type repo: source is a Helm repo URL, chart is the chart name
+# type oci:  source is the oci:// chart reference, chart is -
+# type git:  source is a git URL, chart is the chart path, version is a full commit sha
+# values is an optional file name in testdata/corpus/values/
+vllm-stack|repo|https://vllm-project.github.io/production-stack|vllm-stack|0.1.13|
+vllm-stack-gpu|repo|https://vllm-project.github.io/production-stack|vllm-stack|0.1.13|vllm-stack-gpu.yaml
+vllm-stack-auth|repo|https://vllm-project.github.io/production-stack|vllm-stack|0.1.13|vllm-stack-auth.yaml
+vllm-upstream|git|https://github.com/vllm-project/vllm.git|examples/deployment/chart-helm|be4ce2e50545c6c1bf13f224022aeb2bcf0c0070|
+ollama-otwld|repo|https://helm.otwld.com/|ollama|1.88.0|
+ollama-otwld-gpu|repo|https://helm.otwld.com/|ollama|1.88.0|ollama-gpu.yaml
+ollama-otwld-hardened|repo|https://helm.otwld.com/|ollama|1.88.0|ollama-hardened.yaml
+ollama-infracloud|repo|https://infracloudio.github.io/charts/|ollama|0.1.1|
+tgi-infracloud|repo|https://infracloudio.github.io/charts/|text-generation-inference|0.3.0|
+tgi-infracloud-gpu|repo|https://infracloudio.github.io/charts/|text-generation-inference|0.3.0|tgi-gpu.yaml
+tei-infracloud|repo|https://infracloudio.github.io/charts/|text-embeddings-inference|0.3.0|
+tei-infracloud-lb|repo|https://infracloudio.github.io/charts/|text-embeddings-inference|0.3.0|lb-only.yaml
+vllm-infracloud|repo|https://infracloudio.github.io/charts/|vllm|0.4.1|
+vllm-infracloud-lb|repo|https://infracloudio.github.io/charts/|vllm|0.4.1|vllm-lb.yaml
+tgi-substratus|repo|https://substratusai.github.io/helm|text-generation-inference|0.1.1|
+tgi-substratus-lb|repo|https://substratusai.github.io/helm|text-generation-inference|0.1.1|lb.yaml
+vllm-substratus|repo|https://substratusai.github.io/helm|vllm|0.5.5|
+vllm-substratus-lb|repo|https://substratusai.github.io/helm|vllm|0.5.5|lb.yaml
+vllm-arktec|repo|https://charts.arktecquant.com|vllm|1.0.7|
+ollama-arktec|repo|https://charts.arktecquant.com|ollama|1.0.8|
+triton-gcp|git|https://github.com/triton-inference-server/server.git|deploy/gcp|21ff65dc97b806b1107b54f3c342b89e7d377b26|
+triton-aws|git|https://github.com/triton-inference-server/server.git|deploy/aws|21ff65dc97b806b1107b54f3c342b89e7d377b26|
+triton-oci|git|https://github.com/triton-inference-server/server.git|deploy/oci|21ff65dc97b806b1107b54f3c342b89e7d377b26|
+triton-onprem|git|https://github.com/triton-inference-server/server.git|deploy/k8s-onprem|21ff65dc97b806b1107b54f3c342b89e7d377b26|
+kubeai|repo|https://www.kubeai.org|kubeai|0.24.0|
+kubeai-lb|repo|https://www.kubeai.org|kubeai|0.24.0|kubeai-lb.yaml
+open-webui|repo|https://helm.openwebui.com/|open-webui|17.0.0|
+open-webui-gpu|repo|https://helm.openwebui.com/|open-webui|17.0.0|open-webui-gpu.yaml
+local-ai|repo|https://go-skynet.github.io/helm-charts/|local-ai|3.4.2|
+local-ai-gpu|repo|https://go-skynet.github.io/helm-charts/|local-ai|3.4.2|local-ai-gpu.yaml
+kuberay-operator|repo|https://ray-project.github.io/kuberay-helm/|kuberay-operator|1.7.1|
+ray-cluster|repo|https://ray-project.github.io/kuberay-helm/|ray-cluster|1.7.1|
+kserve|oci|oci://ghcr.io/kserve/charts/kserve|-|v0.15.0|
+litellm|oci|oci://ghcr.io/berriai/litellm-helm|-|1.105.1|
+ollama-otwld-ingress|repo|https://helm.otwld.com/|ollama|1.88.0|ollama-ingress.yaml
+vllm-substratus-ingress|repo|https://substratusai.github.io/helm|vllm|0.5.5|ingress-only.yaml

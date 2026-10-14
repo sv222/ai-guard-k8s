@@ -1,0 +1,22 @@
+servingEngineSpec:
+  vllmApiKey:
+    secretName: vllm-api-key
+    secretKey: key
+  modelSpec:
+    - name: llama
+      enabled: true
+      repository: vllm/vllm-openai
+      tag: v0.9.1
+      modelURL: meta-llama/Llama-3.1-8B-Instruct
+      replicaCount: 1
+      requestCPU: 6
+      requestMemory: 16Gi
+      requestGPU: 1
+      vllmConfig:
+        extraArgs:
+          - "--trust-remote-code"
+routerSpec:
+  serviceType: NodePort
+  vllmApiKey:
+    secretName: vllm-api-key
+    secretKey: key

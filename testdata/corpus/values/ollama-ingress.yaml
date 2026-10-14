@@ -1,0 +1,7 @@
+ingress:
+  enabled: true
+  hosts:
+    - host: ollama.example.com
+      paths:
+        - path: /
+          pathType: Prefix

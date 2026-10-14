@@ -25,6 +25,16 @@ If you change `pkg/enforce`, regenerate the golden files and the `policies/` mir
 
     go test ./pkg/enforce -run TestPoliciesGolden -update
 
+## Check against real Helm charts
+
+`scripts/corpus.sh` renders public Helm charts and scans them. It needs only Docker and network access. Charts, versions and value files are pinned in `testdata/corpus/charts.txt` and `testdata/corpus/values/`.
+
+    scripts/corpus.sh
+
+It builds `ai-guard` in a Go container, renders each chart with `helm template` in a Helm container, and writes rendered manifests, table and JSON results and `summary.tsv` to `temp/corpus/`. Set `CORPUS_OUT` to use another directory. Set `GO_IMAGE`, `HELM_IMAGE` or `GIT_IMAGE` to change the container images.
+
+To add a chart, add one line to `charts.txt`. Pin the chart version, or the full commit sha for a git source. Then read the new findings in `temp/corpus/results/` and compare them with the rendered manifest in `temp/corpus/rendered/`. Fix real defects with a small reproducer in `testdata/regress/`. Do not copy third-party charts into the repository.
+
 ## Style
 
 - Keep Go code free of comments unless they explain something non-obvious.

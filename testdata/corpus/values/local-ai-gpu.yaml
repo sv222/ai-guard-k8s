@@ -1,0 +1,11 @@
+deployment:
+  image:
+    repository: quay.io/go-skynet/local-ai
+    tag: latest-gpu-nvidia-cuda-12
+resources:
+  limits:
+    nvidia.com/gpu: 1
+service:
+  type: LoadBalancer
+ingress:
+  enabled: true

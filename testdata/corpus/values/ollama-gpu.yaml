@@ -1,0 +1,18 @@
+ollama:
+  gpu:
+    enabled: true
+    number: 1
+  models:
+    pull:
+      - llama3.2
+service:
+  type: LoadBalancer
+ingress:
+  enabled: true
+  hosts:
+    - host: ollama.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+persistentVolume:
+  enabled: true

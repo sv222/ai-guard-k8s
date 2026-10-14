@@ -1,0 +1,16 @@
+config:
+  modelID: meta-llama/Llama-3.1-8B-Instruct
+service:
+  type: LoadBalancer
+resources:
+  limits:
+    nvidia.com/gpu: 1
+  requests:
+    cpu: "4"
+    memory: 16Gi
+env:
+  - name: HF_TOKEN
+    valueFrom:
+      secretKeyRef:
+        name: hf-token
+        key: token
