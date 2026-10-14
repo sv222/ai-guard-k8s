@@ -14,6 +14,8 @@ var patterns = []string{
 	"vllm", "ollama", "tritonserver", "text-generation-inference", "tgi", "ray-serve",
 }
 
+var wordPatterns = map[string]bool{"tgi": true}
+
 func ValidateSelector(sel string) error {
 	if strings.TrimSpace(sel) == "" {
 		return nil
@@ -36,20 +38,41 @@ func IsAIWorkload(w target.WorkloadTarget, extraSelector string) bool {
 	for _, c := range w.Containers() {
 		hay += " " + strings.ToLower(c.Image)
 	}
+	return matchesPattern(hay)
+}
+
+func matchesPattern(s string) bool {
 	for _, p := range patterns {
-		if strings.Contains(hay, p) {
+		if containsPattern(s, p) {
 			return true
 		}
 	}
 	return false
 }
 
-func IsAIContainer(c corev1.Container) bool {
-	img := strings.ToLower(c.Image)
-	for _, p := range patterns {
-		if strings.Contains(img, p) {
+func containsPattern(s, p string) bool {
+	if !wordPatterns[p] {
+		return strings.Contains(s, p)
+	}
+	for from := 0; from < len(s); {
+		i := strings.Index(s[from:], p)
+		if i < 0 {
+			return false
+		}
+		start := from + i
+		end := start + len(p)
+		if (start == 0 || !isAlnum(s[start-1])) && (end == len(s) || !isAlnum(s[end])) {
 			return true
 		}
+		from = start + 1
 	}
 	return false
+}
+
+func isAlnum(b byte) bool {
+	return b >= 'a' && b <= 'z' || b >= '0' && b <= '9'
+}
+
+func IsAIContainer(c corev1.Container) bool {
+	return matchesPattern(strings.ToLower(c.Image))
 }

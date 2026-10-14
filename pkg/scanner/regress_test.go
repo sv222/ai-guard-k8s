@@ -33,3 +33,7 @@ func wantIDs(t *testing.T, got map[string]int, want map[string]int) {
 func TestRegressHelmTestHookPodIsSkipped(t *testing.T) {
 	wantIDs(t, scanRegress(t, "helm-test-hook.yaml"), map[string]int{})
 }
+
+func TestRegressTgiSubstringIsNotAnEngine(t *testing.T) {
+	wantIDs(t, scanRegress(t, "postgis.yaml"), map[string]int{})
+}

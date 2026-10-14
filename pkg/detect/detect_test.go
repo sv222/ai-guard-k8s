@@ -26,6 +26,10 @@ func TestImageMatch(t *testing.T) {
 		{"rayproject/ray-serve:2.9", true},
 		{"registry.io/platform/genai:v1", false},
 		{"nginx:1.27", false},
+		{"postgis/postgis:16-3.4", false},
+		{"ghcr.io/huggingface/tgi:3.0", true},
+		{"registry.io/ml/tgi-server:1", true},
+		{"registry.io/ml/server-tgi", true},
 	}
 	for _, tt := range tests {
 		if got := IsAIWorkload(mk("x", tt.image, nil), ""); got != tt.want {

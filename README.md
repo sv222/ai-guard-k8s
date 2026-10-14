@@ -77,7 +77,7 @@ With Go, or from source:
 
 ## What it checks
 
-A workload counts as AI inference if its name or an image contains `vllm`, `ollama`, `tritonserver`, `text-generation-inference`, `tgi` or `ray-serve`. You can also set the label or annotation `ai.infra.guard/enabled: "true"`, or pass `--workload-selector tier=inference`.
+A workload counts as AI inference if its name or an image contains `vllm`, `ollama`, `tritonserver`, `text-generation-inference`, `tgi` (whole word only) or `ray-serve`. You can also set the label or annotation `ai.infra.guard/enabled: "true"`, or pass `--workload-selector tier=inference`.
 
 | ID | Risk | Severity | How it is detected | Fix | Maps to |
 |---|---|---|---|---|---|

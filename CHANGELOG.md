@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- `tgi` matches only as a whole word. Images such as `postgis/postgis` were detected as Text Generation Inference.
 - Helm test hook pods (`helm.sh/hook: test`) are no longer scanned. A `wget` test pod named after the chart was reported as an inference workload.
 
 ## [0.2.0] - 2026-10-14
