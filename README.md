@@ -115,8 +115,11 @@ Policies select pods with the label `ai.infra.guard/enabled: "true"`. Change thi
     ai-guard enforce --apply -n llm                      # server-side apply; -n makes the Cilium policy namespaced
     ai-guard enforce --apply --context staging --yes    # pick the kubeconfig context, skip the prompt
     ai-guard enforce --apply --skip-cilium               # Kyverno policies only, for clusters without Cilium
+    ai-guard enforce --restrict-dns                      # DNS rule answers only the allowed names
 
 The Cilium policy allows Hugging Face hosts by default, including the two-label storage hosts, because a Cilium `*` matches one label only. `--apply` needs the Kyverno and Cilium CRDs in the cluster. On a cluster without Cilium, add `--skip-cilium` to generate and apply only the three Kyverno policies.
+
+Host names for `--allow-fqdn` need at least two labels. A wildcard is allowed only as the whole leftmost label, with at least two fixed labels after it: `*.example.com` is accepted, `*.com`, `*.*` and `a*.example.com` are not. The Cilium DNS rule allows every name by default (`matchPattern: "*"`), so a pod can look up any name, and `toFQDNs` still limits where it can connect. `--restrict-dns` limits the DNS rule to the allowed names. Cilium supports `matchName` and `matchPattern` in DNS rules, but this was not tested on a cluster, and queries for other names are refused, which includes the search-domain names a resolver tries first. The policy allows DNS only to `kube-dns` in `kube-system`. With NodeLocal DNSCache the pod talks to the node-local cache, so DNS would be blocked and the policy needs a change.
 
 Safety note:
 

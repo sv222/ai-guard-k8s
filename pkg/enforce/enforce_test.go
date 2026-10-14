@@ -187,7 +187,7 @@ func TestFQDNs(t *testing.T) {
 	if strings.Count(extra, "huggingface.co") != strings.Count(base, "huggingface.co") {
 		t.Error("duplicate default host was added twice")
 	}
-	for _, bad := range []string{"", "*", "localhost", "bad host.com", "a..b/c"} {
+	for _, bad := range []string{"", "*", "*.", "localhost", "bad host.com", "a..b/c", "*.com", "*.*", "*.*.example.com", "a*.example.com", "foo.*.example.com", "**.example.com", "*example.com", "-a.example.com", "a-.example.com", ".example.com", "a..example.com", "ex_ample.com", strings.Repeat("a", 64) + ".com", strings.Repeat("a.", 130) + "com"} {
 		if _, err := Policies(Options{AllowFQDNs: []string{bad}}); err == nil {
 			t.Errorf("allow-fqdn %q should be rejected", bad)
 		}
@@ -236,6 +236,62 @@ func TestSkipCilium(t *testing.T) {
 	for _, f := range files {
 		if strings.Contains(f.Content, "CiliumNetworkPolicy") {
 			t.Errorf("%s contains a Cilium policy", f.Name)
+		}
+	}
+}
+
+func TestValidateFQDN(t *testing.T) {
+	for in, want := range map[string]string{
+		"models.example.com":    "models.example.com",
+		" Models.Example.COM.":  "models.example.com",
+		"*.example.com":         "*.example.com",
+		"*.cdn.example.co.uk":   "*.cdn.example.co.uk",
+		"xn--bcher-kva.example": "xn--bcher-kva.example",
+		"a.b":                   "a.b",
+	} {
+		got, err := ValidateFQDN(in)
+		if err != nil || got != want {
+			t.Errorf("ValidateFQDN(%q) = %q, %v; want %q", in, got, err, want)
+		}
+	}
+	for _, in := range []string{"*.com", "*.*", "*", "com", "a.*.com", "*.example.*"} {
+		if got, err := ValidateFQDN(in); err == nil {
+			t.Errorf("ValidateFQDN(%q) = %q, want error", in, got)
+		}
+	}
+}
+
+func TestRestrictDNS(t *testing.T) {
+	open, err := Policies(Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(open[3].Content, "dns:\n        - matchPattern: '*'") {
+		t.Errorf("default DNS rule should allow every name:\n%s", open[3].Content)
+	}
+	files, err := Policies(Options{RestrictDNS: true, AllowFQDNs: []string{"models.example.com"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc map[string]interface{}
+	if err := yaml.Unmarshal([]byte(files[3].Content), &doc); err != nil {
+		t.Fatal(err)
+	}
+	egress := doc["spec"].(map[string]interface{})["egress"].([]interface{})
+	dns := egress[0].(map[string]interface{})["toPorts"].([]interface{})[0].(map[string]interface{})["rules"].(map[string]interface{})["dns"].([]interface{})
+	fqdns := egress[1].(map[string]interface{})["toFQDNs"].([]interface{})
+	if len(dns) != len(fqdns) {
+		t.Fatalf("dns rules %d, fqdn rules %d", len(dns), len(fqdns))
+	}
+	for i := range dns {
+		d, f := dns[i].(map[string]interface{}), fqdns[i].(map[string]interface{})
+		for k, v := range d {
+			if f[k] != v {
+				t.Errorf("dns rule %v differs from fqdn rule %v", d, f)
+			}
+		}
+		if d["matchPattern"] == "*" {
+			t.Error("restricted DNS rule still allows every name")
 		}
 	}
 }

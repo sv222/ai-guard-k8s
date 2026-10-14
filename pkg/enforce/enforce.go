@@ -33,14 +33,15 @@ var defaultFQDNs = []string{
 	"transfer.xethub-eu.hf.co",
 }
 
-var fqdnPattern = regexp.MustCompile(`^[a-z0-9*]([a-z0-9*.-]*[a-z0-9*])?$`)
+var fqdnLabel = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`)
 
 type Options struct {
-	Selector   string
-	Mode       string
-	AllowFQDNs []string
-	Namespace  string
-	SkipCilium bool
+	Selector    string
+	Mode        string
+	AllowFQDNs  []string
+	Namespace   string
+	SkipCilium  bool
+	RestrictDNS bool
 }
 
 type PolicyFile struct {
@@ -109,7 +110,7 @@ func Policies(o Options) ([]PolicyFile, error) {
 	if o.SkipCilium {
 		return files, nil
 	}
-	cilium, err := render(ciliumPolicy(sel, fqdns, o.Namespace))
+	cilium, err := render(ciliumPolicy(sel, fqdns, o.Namespace, o.RestrictDNS))
 	if err != nil {
 		return nil, err
 	}
@@ -135,8 +136,8 @@ func mergeFQDNs(extra []string) ([]string, error) {
 	}
 	for _, raw := range extra {
 		h := strings.TrimSuffix(strings.ToLower(strings.TrimSpace(raw)), ".")
-		if h == "" || h == "*" || !strings.Contains(h, ".") || !fqdnPattern.MatchString(h) {
-			return nil, fmt.Errorf("invalid --allow-fqdn %q: want a host name such as models.example.com or *.example.com", raw)
+		if err := validateFQDN(h); err != nil {
+			return nil, fmt.Errorf("invalid --allow-fqdn %q: %w", raw, err)
 		}
 		if seen[h] {
 			continue
@@ -225,7 +226,7 @@ func resourcesRule() obj {
 	}
 }
 
-func ciliumPolicy(sel map[string]string, fqdns []string, namespace string) obj {
+func ciliumPolicy(sel map[string]string, fqdns []string, namespace string, restrictDNS bool) obj {
 	var names []obj
 	for _, h := range fqdns {
 		if strings.Contains(h, "*") {
@@ -233,6 +234,10 @@ func ciliumPolicy(sel map[string]string, fqdns []string, namespace string) obj {
 		} else {
 			names = append(names, obj{"matchName": h})
 		}
+	}
+	dnsRules := []obj{{"matchPattern": "*"}}
+	if restrictDNS {
+		dnsRules = names
 	}
 	meta := obj{"name": "aig-inference-egress"}
 	kind := "CiliumClusterwideNetworkPolicy"
@@ -254,7 +259,7 @@ func ciliumPolicy(sel map[string]string, fqdns []string, namespace string) obj {
 					}}},
 					"toPorts": []obj{{
 						"ports": []obj{{"port": "53", "protocol": "ANY"}},
-						"rules": obj{"dns": []obj{{"matchPattern": "*"}}},
+						"rules": obj{"dns": dnsRules},
 					}},
 				},
 				{"toFQDNs": names},
@@ -278,6 +283,37 @@ func Write(outDir string, files []PolicyFile) error {
 	for _, f := range files {
 		if err := os.WriteFile(filepath.Join(outDir, f.Name), []byte(f.Content), 0o644); err != nil {
 			return err
+		}
+	}
+	return nil
+}
+
+func ValidateFQDN(raw string) (string, error) {
+	h := strings.TrimSuffix(strings.ToLower(strings.TrimSpace(raw)), ".")
+	if err := validateFQDN(h); err != nil {
+		return "", err
+	}
+	return h, nil
+}
+
+func validateFQDN(h string) error {
+	const want = "want a host name such as models.example.com or *.example.com"
+	if h == "" || len(h) > 253 {
+		return fmt.Errorf("%s", want)
+	}
+	labels := strings.Split(h, ".")
+	fixed := labels
+	if labels[0] == "*" {
+		fixed = labels[1:]
+		if len(fixed) < 2 {
+			return fmt.Errorf("a wildcard needs at least two fixed labels after it (*.example.com), not %q", h)
+		}
+	} else if len(fixed) < 2 {
+		return fmt.Errorf("%s", want)
+	}
+	for _, l := range fixed {
+		if !fqdnLabel.MatchString(l) {
+			return fmt.Errorf("%s; a wildcard is allowed only as the whole leftmost label", want)
 		}
 	}
 	return nil

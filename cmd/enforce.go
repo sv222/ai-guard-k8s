@@ -32,27 +32,29 @@ var (
 
 func newEnforceCmd(kubeconfig *string) *cobra.Command {
 	var (
-		out        string
-		apply      bool
-		dryRun     bool
-		sel        string
-		mode       string
-		fqdns      []string
-		namespace  string
-		skipCilium bool
-		kubeCtx    string
-		yes        bool
+		out         string
+		apply       bool
+		dryRun      bool
+		sel         string
+		mode        string
+		fqdns       []string
+		namespace   string
+		skipCilium  bool
+		restrictDNS bool
+		kubeCtx     string
+		yes         bool
 	)
 	c := &cobra.Command{
 		Use:   "enforce",
 		Short: "Generate (and optionally apply) Kyverno + Cilium hardening policies",
 		RunE: func(c *cobra.Command, args []string) error {
 			files, err := enforce.Policies(enforce.Options{
-				Selector:   sel,
-				Mode:       mode,
-				AllowFQDNs: fqdns,
-				Namespace:  namespace,
-				SkipCilium: skipCilium,
+				Selector:    sel,
+				Mode:        mode,
+				AllowFQDNs:  fqdns,
+				Namespace:   namespace,
+				SkipCilium:  skipCilium,
+				RestrictDNS: restrictDNS,
 			})
 			if err != nil {
 				return runtimeError(err)
@@ -79,6 +81,7 @@ func newEnforceCmd(kubeconfig *string) *cobra.Command {
 	c.Flags().StringVar(&sel, "selector", selector.DefaultEnforce, "k=v[,k=v] label selector scoping the Kyverno and Cilium policies")
 	c.Flags().StringVar(&mode, "mode", enforce.ModeAudit, "Kyverno validationFailureAction: audit or enforce")
 	c.Flags().StringSliceVar(&fqdns, "allow-fqdn", nil, "extra host allowed for egress by the Cilium policy (repeatable)")
+	c.Flags().BoolVar(&restrictDNS, "restrict-dns", false, "let the Cilium DNS rule answer only the allowed host names instead of every name (can break lookups through search domains; test first)")
 	c.Flags().BoolVar(&skipCilium, "skip-cilium", false, "do not generate or apply the Cilium policy (for clusters without Cilium)")
 	c.Flags().StringVarP(&namespace, "namespace", "n", "", "namespace: make the Cilium policy a namespaced CiliumNetworkPolicy there (default: a cluster-wide CiliumClusterwideNetworkPolicy)")
 	return c
