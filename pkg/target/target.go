@@ -1,6 +1,8 @@
 package target
 
 import (
+	"strings"
+
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 )
@@ -12,6 +14,15 @@ type WorkloadTarget struct {
 	Annotations                   map[string]string
 	MetaAnnotations               map[string]string
 	PodSpec                       corev1.PodSpec
+}
+
+func (w WorkloadTarget) IsHelmTestHook() bool {
+	for _, h := range strings.Split(w.MergedAnnotations()["helm.sh/hook"], ",") {
+		if strings.HasPrefix(strings.TrimSpace(h), "test") {
+			return true
+		}
+	}
+	return false
 }
 
 func (w WorkloadTarget) Containers() []corev1.Container { return w.PodSpec.Containers }

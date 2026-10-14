@@ -62,7 +62,7 @@ func Analyze(ds target.DirScan, selector string) []checks.Finding {
 	ctx := checks.ScanContext{NetPols: ds.NetPols, Services: ds.Services}
 	var out []checks.Finding
 	for _, w := range ds.Targets {
-		if !detect.IsAIWorkload(w, selector) {
+		if w.IsHelmTestHook() || !detect.IsAIWorkload(w, selector) {
 			continue
 		}
 		out = append(out, checks.RunPodSpecChecks(w)...)
