@@ -22,11 +22,19 @@ spec:
               ai.infra.guard/enabled: "true"
     name: block-host-access
     validate:
-      message: AI inference pods must not use hostNetwork, hostPID or hostPath volumes
+      message: AI inference pods must not use hostNetwork, hostPID, hostIPC, hostPort
+        or hostPath volumes
       pattern:
         spec:
+          =(containers):
+          - =(ports):
+            - =(hostPort): 0
+          =(hostIPC): "false"
           =(hostNetwork): "false"
           =(hostPID): "false"
+          =(initContainers):
+          - =(ports):
+            - =(hostPort): 0
           =(volumes):
           - X(hostPath): "null"
   validationFailureAction: Audit

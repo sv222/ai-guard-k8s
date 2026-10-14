@@ -22,9 +22,16 @@ spec:
               ai.infra.guard/enabled: "true"
     name: require-resources
     validate:
-      message: AI inference containers must set requests and limits
+      message: AI inference containers and init containers must set requests and limits
       pattern:
         spec:
+          =(initContainers):
+          - resources:
+              limits:
+                memory: ?*
+              requests:
+                cpu: ?*
+                memory: ?*
           containers:
           - resources:
               limits:

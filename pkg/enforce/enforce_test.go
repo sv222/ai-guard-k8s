@@ -295,3 +295,56 @@ func TestRestrictDNS(t *testing.T) {
 		}
 	}
 }
+
+func TestWriteRefusesSymlinksAndSpecialFiles(t *testing.T) {
+	dir := t.TempDir()
+	victim := filepath.Join(t.TempDir(), "victim")
+	if err := os.WriteFile(victim, []byte("keep"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	files := defaultPolicies(t)
+	if err := os.Symlink(victim, filepath.Join(dir, files[1].Name)); err != nil {
+		t.Skip("symlinks not available:", err)
+	}
+	err := Write(dir, files)
+	if err == nil || !strings.Contains(err.Error(), "not a regular file") {
+		t.Fatalf("err = %v", err)
+	}
+	if b, _ := os.ReadFile(victim); string(b) != "keep" {
+		t.Errorf("symlink target was overwritten: %q", b)
+	}
+	if _, err := os.Stat(filepath.Join(dir, files[0].Name)); err == nil {
+		t.Error("files were written although one target was refused")
+	}
+}
+
+func TestWriteOverwritesRegularFiles(t *testing.T) {
+	dir := t.TempDir()
+	files := defaultPolicies(t)
+	if err := os.WriteFile(filepath.Join(dir, files[0].Name), []byte("old"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := Write(dir, files); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(filepath.Join(dir, files[0].Name)); string(b) != files[0].Content {
+		t.Error("regular file not replaced")
+	}
+}
+
+func TestHostAndResourceRulesCoverNewFields(t *testing.T) {
+	files := defaultPolicies(t)
+	byName := map[string]string{}
+	for _, f := range files {
+		byName[f.Name] = f.Content
+	}
+	host := byName["aig-block-host-access.yaml"]
+	for _, want := range []string{"=(hostIPC)", "=(hostPort)", "=(initContainers)"} {
+		if !strings.Contains(host, want) {
+			t.Errorf("host access policy lacks %s", want)
+		}
+	}
+	if !strings.Contains(byName["aig-require-resources.yaml"], "=(initContainers)") {
+		t.Error("resources policy ignores init containers")
+	}
+}

@@ -1,7 +1,9 @@
 package enforce
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -204,24 +206,30 @@ func privilegedRule() obj {
 }
 
 func hostAccessRule() obj {
+	noHostPort := []obj{{"=(ports)": []obj{{"=(hostPort)": 0}}}}
 	return obj{
-		"message": "AI inference pods must not use hostNetwork, hostPID or hostPath volumes",
+		"message": "AI inference pods must not use hostNetwork, hostPID, hostIPC, hostPort or hostPath volumes",
 		"pattern": obj{"spec": obj{
-			"=(hostNetwork)": "false",
-			"=(hostPID)":     "false",
-			"=(volumes)":     []obj{{"X(hostPath)": "null"}},
+			"=(hostNetwork)":    "false",
+			"=(hostPID)":        "false",
+			"=(hostIPC)":        "false",
+			"=(volumes)":        []obj{{"X(hostPath)": "null"}},
+			"=(initContainers)": noHostPort,
+			"=(containers)":     noHostPort,
 		}},
 	}
 }
 
 func resourcesRule() obj {
+	res := []obj{{"resources": obj{
+		"requests": obj{"memory": "?*", "cpu": "?*"},
+		"limits":   obj{"memory": "?*"},
+	}}}
 	return obj{
-		"message": "AI inference containers must set requests and limits",
+		"message": "AI inference containers and init containers must set requests and limits",
 		"pattern": obj{"spec": obj{
-			"containers": []obj{{"resources": obj{
-				"requests": obj{"memory": "?*", "cpu": "?*"},
-				"limits":   obj{"memory": "?*"},
-			}}},
+			"=(initContainers)": res,
+			"containers":        res,
 		}},
 	}
 }
@@ -279,6 +287,17 @@ func render(doc obj) (string, error) {
 func Write(outDir string, files []PolicyFile) error {
 	if err := os.MkdirAll(outDir, 0o755); err != nil {
 		return err
+	}
+	for _, f := range files {
+		p := filepath.Join(outDir, f.Name)
+		info, err := os.Lstat(p)
+		switch {
+		case errors.Is(err, fs.ErrNotExist):
+		case err != nil:
+			return err
+		case !info.Mode().IsRegular():
+			return fmt.Errorf("%s exists and is not a regular file (symlinks are not followed); remove it first", p)
+		}
 	}
 	for _, f := range files {
 		if err := os.WriteFile(filepath.Join(outDir, f.Name), []byte(f.Content), 0o644); err != nil {
