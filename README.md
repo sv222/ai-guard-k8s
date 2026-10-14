@@ -187,10 +187,6 @@ Not verified:
 
 Ideas and bug reports are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md). Report security issues as described in [SECURITY.md](SECURITY.md).
 
-## About the author
-
-Stanislav is a DevSecOps engineer. He focuses on Kubernetes and AI infrastructure security. GitHub: [sv222](https://github.com/sv222).
-
 ## License
 
 Apache-2.0. Provided as is. Risk acceptance stays with your organization.
