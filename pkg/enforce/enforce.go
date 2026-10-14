@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/sv222/ai-guard-k8s/pkg/selector"
+	"k8s.io/apimachinery/pkg/util/validation"
 	"sigs.k8s.io/yaml"
 )
 
@@ -75,6 +76,11 @@ func Policies(o Options) ([]PolicyFile, error) {
 	fqdns, err := mergeFQDNs(o.AllowFQDNs)
 	if err != nil {
 		return nil, err
+	}
+	if o.Namespace != "" {
+		if errs := validation.IsDNS1123Label(o.Namespace); len(errs) > 0 {
+			return nil, fmt.Errorf("invalid --namespace %q: %s", o.Namespace, strings.Join(errs, "; "))
+		}
 	}
 
 	specs := []struct {

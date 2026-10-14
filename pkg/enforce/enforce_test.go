@@ -348,3 +348,14 @@ func TestHostAndResourceRulesCoverNewFields(t *testing.T) {
 		t.Error("resources policy ignores init containers")
 	}
 }
+
+func TestInvalidNamespaceIsRejected(t *testing.T) {
+	for _, ns := range []string{"Bad_NS", "a b", "-x", "x-", "a: b", strings.Repeat("a", 64), "a.b"} {
+		if _, err := Policies(Options{Namespace: ns}); err == nil {
+			t.Errorf("namespace %q should be rejected", ns)
+		}
+	}
+	if _, err := Policies(Options{Namespace: "llm-2"}); err != nil {
+		t.Error(err)
+	}
+}
