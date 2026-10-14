@@ -15,13 +15,14 @@ const applyTimeout = 60 * time.Second
 
 func newEnforceCmd(kubeconfig *string) *cobra.Command {
 	var (
-		out       string
-		apply     bool
-		dryRun    bool
-		sel       string
-		mode      string
-		fqdns     []string
-		namespace string
+		out        string
+		apply      bool
+		dryRun     bool
+		sel        string
+		mode       string
+		fqdns      []string
+		namespace  string
+		skipCilium bool
 	)
 	c := &cobra.Command{
 		Use:   "enforce",
@@ -32,6 +33,7 @@ func newEnforceCmd(kubeconfig *string) *cobra.Command {
 				Mode:       mode,
 				AllowFQDNs: fqdns,
 				Namespace:  namespace,
+				SkipCilium: skipCilium,
 			})
 			if err != nil {
 				return runtimeError(err)
@@ -62,6 +64,7 @@ func newEnforceCmd(kubeconfig *string) *cobra.Command {
 	c.Flags().StringVar(&sel, "selector", selector.DefaultEnforce, "k=v[,k=v] label selector scoping the Kyverno and Cilium policies")
 	c.Flags().StringVar(&mode, "mode", enforce.ModeAudit, "Kyverno validationFailureAction: audit or enforce")
 	c.Flags().StringSliceVar(&fqdns, "allow-fqdn", nil, "extra host allowed for egress by the Cilium policy (repeatable)")
+	c.Flags().BoolVar(&skipCilium, "skip-cilium", false, "do not generate or apply the CiliumNetworkPolicy (for clusters without Cilium)")
 	c.Flags().StringVarP(&namespace, "namespace", "n", "", "namespace for the namespaced CiliumNetworkPolicy (default: default)")
 	return c
 }

@@ -220,3 +220,18 @@ func TestWrite(t *testing.T) {
 		}
 	}
 }
+
+func TestSkipCilium(t *testing.T) {
+	files, err := Policies(Options{SkipCilium: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(files) != 3 {
+		t.Fatalf("got %d files, want 3", len(files))
+	}
+	for _, f := range files {
+		if strings.Contains(f.Content, "CiliumNetworkPolicy") {
+			t.Errorf("%s contains a Cilium policy", f.Name)
+		}
+	}
+}

@@ -40,6 +40,7 @@ type Options struct {
 	Mode       string
 	AllowFQDNs []string
 	Namespace  string
+	SkipCilium bool
 }
 
 type PolicyFile struct {
@@ -105,6 +106,9 @@ func Policies(o Options) ([]PolicyFile, error) {
 		files = append(files, PolicyFile{Name: s.name + ".yaml", Content: content})
 	}
 
+	if o.SkipCilium {
+		return files, nil
+	}
 	cilium, err := render(ciliumPolicy(sel, fqdns, o.Namespace))
 	if err != nil {
 		return nil, err

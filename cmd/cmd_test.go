@@ -305,3 +305,22 @@ func TestExitErrorHelpers(t *testing.T) {
 		t.Error("runtimeError(nil) must be nil")
 	}
 }
+
+func TestEnforceSkipCilium(t *testing.T) {
+	brokenKubeconfig(t)
+	stdout, _, code := run(t, "enforce", "--apply", "--dry-run", "--skip-cilium")
+	if code != 0 {
+		t.Fatalf("code = %d", code)
+	}
+	if strings.Count(stdout, "would apply") != 3 || strings.Contains(stdout, "Cilium") {
+		t.Errorf("stdout = %q", stdout)
+	}
+	out := filepath.Join(t.TempDir(), "out")
+	stdout, _, code = run(t, "enforce", "--out", out, "--skip-cilium")
+	if code != 0 || !strings.Contains(stdout, "wrote 3 policies") {
+		t.Errorf("code=%d stdout=%q", code, stdout)
+	}
+	if _, err := os.Stat(filepath.Join(out, "aig-cilium-egress-fqdn.yaml")); !errors.Is(err, os.ErrNotExist) {
+		t.Error("cilium file written")
+	}
+}
