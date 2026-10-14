@@ -3,7 +3,7 @@
 Scan manifests or a live cluster for unsafe settings in vLLM, Ollama, Triton, TGI and Ray Serve workloads. Then generate Kyverno and Cilium policies to harden them.
 
 [![ci](https://github.com/sv222/ai-guard-k8s/actions/workflows/ci.yml/badge.svg)](https://github.com/sv222/ai-guard-k8s/actions/workflows/ci.yml)
-[![license](https://img.shields.io/github/license/sv222/ai-guard-k8s)](LICENSE)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
 `ai-guard` is a small Go CLI. It reads Kubernetes objects only. It does not scan prompts or model weights. It gives table or JSON output and exit codes for CI.
 
