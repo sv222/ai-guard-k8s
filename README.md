@@ -52,9 +52,11 @@ Download the archive for your system from the [Releases page](https://github.com
 
 Each release also has an SBOM per archive (SPDX, made by Syft) and `checksums.txt.sigstore.json`, a keyless [cosign](https://github.com/sigstore/cosign) signature of `checksums.txt` made by the release workflow. To verify it:
 
-    cosign verify-blob checksums.txt --bundle checksums.txt.sigstore.json \n      --certificate-identity-regexp "^https://github.com/sv222/ai-guard-k8s/.github/workflows/release.yml/tags/v" \n      --certificate-oidc-issuer https://token.actions.githubusercontent.com
+    cosign verify-blob checksums.txt --bundle checksums.txt.sigstore.json \
+      --certificate-identity-regexp "^https://github.com/sv222/ai-guard-k8s/.github/workflows/release.yml/tags/v" \
+      --certificate-oidc-issuer https://token.actions.githubusercontent.com
 
-The signing, the SBOM and the build provenance attestation run only when a version tag is pushed. They have not been run yet, so the first release is their first test. Binaries are built with `-trimpath`.
+The signing and the SBOM run when a version tag is pushed. The build provenance attestation runs only for public repositories. Binaries are built with `-trimpath`.
 
 With Go, or from source:
 
