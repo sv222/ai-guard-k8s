@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
@@ -382,5 +383,99 @@ func TestFromClientsetIngressForbiddenIsAWarning(t *testing.T) {
 	}
 	if len(ds.Warnings) != 1 || !strings.Contains(ds.Warnings[0], "Ingresses") {
 		t.Errorf("warnings = %v", ds.Warnings)
+	}
+}
+
+func TestFromDirSkipsSymlinks(t *testing.T) {
+	dir := t.TempDir()
+	real := filepath.Join(t.TempDir(), "real.yaml")
+	if err := os.WriteFile(real, []byte("apiVersion: v1\nkind: Service\nmetadata:\n  name: s\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(real, filepath.Join(dir, "link.yaml")); err != nil {
+		t.Skip("symlinks not available:", err)
+	}
+	ds, err := FromDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ds.Services) != 0 || ds.Objects != 0 {
+		t.Errorf("symlink was followed: %+v", ds)
+	}
+	if len(ds.Warnings) != 1 || !strings.Contains(ds.Warnings[0], "not a regular file") {
+		t.Errorf("warnings = %v", ds.Warnings)
+	}
+	if ds.Failed != 0 {
+		t.Errorf("a skipped symlink must not count as a decode failure: %d", ds.Failed)
+	}
+}
+
+func TestFromDirSkipsHugeFile(t *testing.T) {
+	dir := t.TempDir()
+	big := make([]byte, MaxFileSize+1)
+	for i := range big {
+		big[i] = '#'
+	}
+	if err := os.WriteFile(filepath.Join(dir, "big.yaml"), big, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	ds, err := FromDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ds.Failed != 1 || len(ds.Warnings) != 1 || !strings.Contains(ds.Warnings[0], "larger than") {
+		t.Errorf("failed=%d warnings=%v", ds.Failed, ds.Warnings)
+	}
+}
+
+func TestFromDirFileAtLimitIsRead(t *testing.T) {
+	dir := t.TempDir()
+	doc := "apiVersion: v1\nkind: Service\nmetadata:\n  name: s\n---\n"
+	pad := make([]byte, MaxFileSize-len(doc))
+	for i := range pad {
+		pad[i] = '#'
+	}
+	if err := os.WriteFile(filepath.Join(dir, "edge.yaml"), append([]byte(doc), pad...), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	ds, err := FromDir(dir)
+	if err != nil || len(ds.Services) != 1 || ds.Failed != 0 {
+		t.Errorf("err=%v services=%d failed=%d", err, len(ds.Services), ds.Failed)
+	}
+}
+
+func TestFromDirAliasBombDoesNotHang(t *testing.T) {
+	var b strings.Builder
+	b.WriteString("a: &a [x,x,x,x,x,x,x,x,x]\n")
+	prev := "a"
+	for i := 'b'; i <= 'j'; i++ {
+		name := string(i)
+		b.WriteString(name + ": &" + name + " [")
+		for j := 0; j < 9; j++ {
+			if j > 0 {
+				b.WriteString(",")
+			}
+			b.WriteString("*" + prev)
+		}
+		b.WriteString("]\n")
+		prev = name
+	}
+	b.WriteString("kind: Deployment\nmetadata:\n  name: bomb\nspec:\n  template:\n    spec:\n      containers: *j\n")
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "bomb.yaml"), []byte(b.String()), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan DirScan, 1)
+	go func() {
+		ds, _ := FromDir(dir)
+		done <- ds
+	}()
+	select {
+	case ds := <-done:
+		if ds.Failed == 0 {
+			t.Errorf("alias bomb was accepted: %+v", ds)
+		}
+	case <-time.After(20 * time.Second):
+		t.Fatal("alias bomb took too long")
 	}
 }

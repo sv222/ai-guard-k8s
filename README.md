@@ -65,7 +65,7 @@ With Go, or from source:
     ai-guard scan --path manifests/ --cluster  # files and cluster together
     ai-guard scan --path manifests/ --json     # JSON output
 
-`--path` reads `.yaml`, `.yml` and `.json` files, including multi-document files and `kind: List`. Render Helm charts first with `helm template`.
+`--path` reads `.yaml`, `.yml` and `.json` files, including multi-document files and `kind: List`. Render Helm charts first with `helm template`. Symlinks and special files (named pipes, devices) are skipped with a warning, and files larger than 10 MB are skipped and count as decode failures.
 
 | Exit code | Meaning |
 |---|---|

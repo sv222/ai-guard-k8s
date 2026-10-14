@@ -25,6 +25,8 @@ type typeMeta struct {
 	Items []json.RawMessage `json:"items"`
 }
 
+const MaxFileSize = 10 << 20
+
 func FromDir(dir string) (DirScan, error) {
 	var out DirScan
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
@@ -36,14 +38,46 @@ func FromDir(dir string) (DirScan, error) {
 		default:
 			return nil
 		}
-		data, err := os.ReadFile(path)
+		if !info.Mode().IsRegular() {
+			out.Warnings = append(out.Warnings, fmt.Sprintf("%s: skipped, not a regular file (symlinks and special files are not followed)", path))
+			return nil
+		}
+		if info.Size() > MaxFileSize {
+			out.Failed++
+			out.Warnings = append(out.Warnings, fmt.Sprintf("%s: skipped, file is larger than %d MB", path, MaxFileSize>>20))
+			return nil
+		}
+		data, err := readLimited(path)
 		if err != nil {
+			if errors.Is(err, errTooLarge) {
+				out.Failed++
+				out.Warnings = append(out.Warnings, fmt.Sprintf("%s: skipped, file is larger than %d MB", path, MaxFileSize>>20))
+				return nil
+			}
 			return err
 		}
 		consumeFile(&out, data, path)
 		return nil
 	})
 	return out, err
+}
+
+var errTooLarge = errors.New("file too large")
+
+func readLimited(path string) ([]byte, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	data, err := io.ReadAll(io.LimitReader(f, MaxFileSize+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(data) > MaxFileSize {
+		return nil, errTooLarge
+	}
+	return data, nil
 }
 
 func consumeFile(out *DirScan, data []byte, path string) {

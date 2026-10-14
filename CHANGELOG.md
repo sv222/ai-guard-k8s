@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- `scan --path` follows no symlinks, skips special files (a named pipe no longer blocks the scan) and skips files larger than 10 MB. A YAML alias bomb is rejected by the decoder; a test covers it.
 - `scan --path` exited with 0 and printed "No findings." when files could not be decoded (raw Helm templates, a Deployment with a wrong field type) or when the path had no Kubernetes object. It now exits with 2 and says why.
 - AIG-001 and AIG-010 read auth env names per engine. vLLM reads only `--api-key` and `VLLM_API_KEY`, so `API_KEY` and `OPENAI_API_KEY` no longer hide a missing key on vLLM. Ollama, TGI, Triton and other engines without native auth get no credit from an env var. Text Embeddings Inference (`API_KEY`), llama.cpp (`LLAMA_API_KEY`) and LocalAI (`LOCALAI_API_KEY`, `API_KEY`) keep their own names.
 - AIG-009 judges ingress only. An ingress rule with `ports` but no `from`, or with an empty `namespaceSelector`, no longer counts as isolation, and an egress-only policy no longer hides the finding while ingress stays open.
