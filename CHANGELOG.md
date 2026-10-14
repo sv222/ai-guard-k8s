@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- Workloads you opt in with the label, the annotation or `--workload-selector` now get the engine checks (AIG-001, AIG-002, AIG-008) when the pod has one container and the image is not recognized. Before, only AIG-003 to AIG-007, AIG-009 and AIG-010 ran on them.
 - Engines started by `command` or `args` are detected when the image name does not match, for example `vllm serve`, `python -m vllm.entrypoints...` or `exec ollama serve`. A vLLM server in a custom image got no AIG-001, AIG-002 or AIG-008 checks.
 - Engines missed before are now detected by image: `text-embeddings-inference`, `local-ai` and `localai`, `sglang`, `llama.cpp` and `llama-cpp`, `lmdeploy` and `tensorrt-llm`. A Text Embeddings Inference chart behind a `LoadBalancer` gave no findings.
 - `tgi` matches only as a whole word. Images such as `postgis/postgis` were detected as Text Generation Inference.

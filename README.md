@@ -92,7 +92,7 @@ A workload counts as AI inference if its name or an image contains `vllm`, `olla
 | AIG-009 | No NetworkPolicy isolation | Medium | No NetworkPolicy selects the pod and restricts traffic, or the policy allows all | Default-deny plus an allowlist (see `ai-guard enforce`) | - |
 | AIG-010 | Exposed by `LoadBalancer` or `NodePort` | High | A Service of that type selects the workload and no auth evidence exists | Add auth, use the gateway annotation, or use an internal Service | - |
 
-Helm test hook pods (`helm.sh/hook: test`) are skipped. AIG-005, AIG-006 and AIG-007 also cover init containers. Container settings override pod settings. There is no inline ignore comment. To silence a check, fix the cause.
+Helm test hook pods (`helm.sh/hook: test`) are skipped. If you opt in a pod with one container and no engine is recognized, that container gets the engine checks (AIG-001, AIG-002, AIG-008). AIG-005, AIG-006 and AIG-007 also cover init containers. Container settings override pod settings. There is no inline ignore comment. To silence a check, fix the cause.
 
 PSS means [Pod Security Standards](https://kubernetes.io/docs/concepts/security/pod-security-standards/). The mapping shows which control covers the same setting. It does not mean ai-guard is a PSS validator. The OWASP and ATLAS IDs are references for AIG-008 only.
 

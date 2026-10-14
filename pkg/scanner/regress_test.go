@@ -3,6 +3,9 @@ package scanner
 import (
 	"context"
 	"testing"
+
+	"github.com/sv222/ai-guard-k8s/pkg/target"
+	corev1 "k8s.io/api/core/v1"
 )
 
 const regress = "../../testdata/regress"
@@ -85,5 +88,35 @@ func TestRegressEngineStartedByCommand(t *testing.T) {
 	}
 	if got := idSet(res.Findings)["AIG-008"]; got != 1 {
 		t.Errorf("AIG-008 = %d, want 1 for --trust-remote-code in the shell string", got)
+	}
+}
+
+func TestRegressOptInWorkloadWithCustomImage(t *testing.T) {
+	res, err := Scan(context.Background(), Options{Path: regress + "/optin-custom-image.yaml"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]map[string]int{}
+	for _, f := range res.Findings {
+		if got[f.Name] == nil {
+			got[f.Name] = map[string]int{}
+		}
+		got[f.Name][f.ID]++
+	}
+	if got["genai"]["AIG-001"] != 1 || got["genai"]["AIG-008"] != 1 {
+		t.Errorf("opted-in single container workload not checked: %v", got["genai"])
+	}
+	if got["genai-mesh"]["AIG-001"] != 0 || got["genai-mesh"]["AIG-008"] != 0 {
+		t.Errorf("engine checks ran on a multi-container pod with no recognized engine: %v", got["genai-mesh"])
+	}
+}
+
+func TestRegressSelectorOptInWithCustomImage(t *testing.T) {
+	ds := target.DirScan{Targets: []target.WorkloadTarget{{
+		Kind: "Deployment", Namespace: "x", Name: "svc", Labels: map[string]string{"tier": "inference"},
+		PodSpec: corev1.PodSpec{Containers: []corev1.Container{{Name: "c", Image: "registry.example.com/platform/svc:1"}}},
+	}}}
+	if got := idSet(Analyze(ds, "tier=inference")); got["AIG-001"] != 1 {
+		t.Errorf("AIG-001 = %d, want 1 for a selected single-container workload", got["AIG-001"])
 	}
 }

@@ -26,7 +26,7 @@ func ValidateSelector(sel string) error {
 	return err
 }
 
-func IsAIWorkload(w target.WorkloadTarget, extraSelector string) bool {
+func OptedIn(w target.WorkloadTarget, extraSelector string) bool {
 	all := w.MergedLabels()
 	if all[EnableLabel] == "true" || w.MergedAnnotations()[EnableLabel] == "true" {
 		return true
@@ -35,6 +35,26 @@ func IsAIWorkload(w target.WorkloadTarget, extraSelector string) bool {
 		if sel, err := labels.Parse(extraSelector); err == nil && sel.Matches(labels.Set(all)) {
 			return true
 		}
+	}
+	return false
+}
+
+func EngineContainers(w target.WorkloadTarget) []corev1.Container {
+	var out []corev1.Container
+	for _, c := range w.Containers() {
+		if IsAIContainer(c) {
+			out = append(out, c)
+		}
+	}
+	if len(out) == 0 && w.OptIn && len(w.Containers()) == 1 {
+		return w.Containers()
+	}
+	return out
+}
+
+func IsAIWorkload(w target.WorkloadTarget, extraSelector string) bool {
+	if OptedIn(w, extraSelector) {
+		return true
 	}
 	hay := strings.ToLower(w.Name)
 	for _, c := range w.Containers() {

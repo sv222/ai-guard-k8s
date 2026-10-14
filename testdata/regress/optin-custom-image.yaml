@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: genai
+  namespace: llm
+  labels:
+    ai.infra.guard/enabled: "true"
+spec:
+  selector:
+    matchLabels:
+      app: genai
+  template:
+    metadata:
+      labels:
+        app: genai
+    spec:
+      containers:
+        - name: server
+          image: registry.example.com/platform/genai-service:1.2
+          args: ["--model", "/models/m", "--trust-remote-code"]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: genai-mesh
+  namespace: llm
+  labels:
+    ai.infra.guard/enabled: "true"
+spec:
+  selector:
+    matchLabels:
+      app: genai-mesh
+  template:
+    metadata:
+      labels:
+        app: genai-mesh
+    spec:
+      containers:
+        - name: app
+          image: registry.example.com/platform/genai-service:1.2
+          args: ["--trust-remote-code"]
+        - name: proxy
+          image: envoyproxy/envoy:v1.31

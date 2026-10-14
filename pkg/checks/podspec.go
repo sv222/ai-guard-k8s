@@ -30,10 +30,7 @@ func aig001(w target.WorkloadTarget) []Finding {
 		return nil
 	}
 	var out []Finding
-	for _, c := range w.Containers() {
-		if !detect.IsAIContainer(c) {
-			continue
-		}
+	for _, c := range detect.EngineContainers(w) {
 		if hasAuthEvidence(c) {
 			continue
 		}
@@ -56,10 +53,7 @@ func aig001(w target.WorkloadTarget) []Finding {
 
 func aig002(w target.WorkloadTarget) []Finding {
 	var out []Finding
-	for _, c := range w.Containers() {
-		if !detect.IsAIContainer(c) {
-			continue
-		}
+	for _, c := range detect.EngineContainers(w) {
 		if hasArg(c, "--debug") || hasArg(c, "--allow-http") {
 			out = append(out, Finding{
 				ID: "AIG-002", Title: "Debug/insecure endpoint enabled", Severity: "Medium",
@@ -195,10 +189,7 @@ func hasResource(l corev1.ResourceList, name corev1.ResourceName) bool {
 
 func aig008(w target.WorkloadTarget) []Finding {
 	var out []Finding
-	for _, c := range w.Containers() {
-		if !detect.IsAIContainer(c) {
-			continue
-		}
+	for _, c := range detect.EngineContainers(w) {
 		if hasArg(c, "--trust-remote-code") {
 			out = append(out, Finding{ID: "AIG-008", Title: "--trust-remote-code enabled", Severity: "High",
 				Evidence: fmt.Sprintf("container %s: args include --trust-remote-code (arbitrary Python exec from model repo)", c.Name),

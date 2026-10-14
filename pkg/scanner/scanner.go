@@ -65,6 +65,7 @@ func Analyze(ds target.DirScan, selector string) []checks.Finding {
 		if w.IsHelmTestHook() || !detect.IsAIWorkload(w, selector) {
 			continue
 		}
+		w.OptIn = detect.OptedIn(w, selector)
 		out = append(out, checks.RunPodSpecChecks(w)...)
 		out = append(out, checks.RunContextChecks(w, ctx)...)
 	}

@@ -14,6 +14,7 @@ type WorkloadTarget struct {
 	Annotations                   map[string]string
 	MetaAnnotations               map[string]string
 	PodSpec                       corev1.PodSpec
+	OptIn                         bool
 }
 
 func (w WorkloadTarget) IsHelmTestHook() bool {

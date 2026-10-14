@@ -6,7 +6,6 @@ import (
 
 	"github.com/sv222/ai-guard-k8s/pkg/detect"
 	"github.com/sv222/ai-guard-k8s/pkg/target"
-	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -47,12 +46,7 @@ func hasGatewayAuth(w target.WorkloadTarget) bool {
 }
 
 func workloadHasAuth(w target.WorkloadTarget) bool {
-	var matched []corev1.Container
-	for _, c := range w.Containers() {
-		if detect.IsAIContainer(c) {
-			matched = append(matched, c)
-		}
-	}
+	matched := detect.EngineContainers(w)
 	if len(matched) == 0 {
 		matched = w.Containers()
 	}
