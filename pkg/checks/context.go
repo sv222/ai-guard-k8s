@@ -2,6 +2,7 @@ package checks
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/sv222/ai-guard-k8s/pkg/detect"
@@ -109,6 +110,7 @@ func netPolIsolates(w target.WorkloadTarget, pols []target.NetworkPolicyEntry) (
 			}
 		}
 	}
+	sort.Strings(selecting)
 	if len(selecting) == 0 {
 		return false, "no NetworkPolicy in namespace " + w.Namespace + " selects this workload's pod labels"
 	}

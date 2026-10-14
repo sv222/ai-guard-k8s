@@ -219,3 +219,14 @@ func TestAIG010Ingress(t *testing.T) {
 		})
 	}
 }
+
+func TestAIG009EvidenceIsIndependentOfPolicyOrder(t *testing.T) {
+	a, b := pol(matchApp("vllm"), []netv1.PolicyType{netv1.PolicyTypeIngress}, []netv1.NetworkPolicyIngressRule{{}}, nil), pol(matchApp("vllm"), []netv1.PolicyType{netv1.PolicyTypeIngress}, []netv1.NetworkPolicyIngressRule{{}}, nil)
+	a.Name, b.Name = "b-policy", "a-policy"
+	w := aiWorkload(map[string]string{"app": "vllm"})
+	first := RunContextChecks(w, ScanContext{NetPols: []target.NetworkPolicyEntry{a, b}})
+	second := RunContextChecks(w, ScanContext{NetPols: []target.NetworkPolicyEntry{b, a}})
+	if len(first) != 1 || len(second) != 1 || first[0].Evidence != second[0].Evidence {
+		t.Errorf("evidence depends on input order:\n%+v\n%+v", first, second)
+	}
+}
