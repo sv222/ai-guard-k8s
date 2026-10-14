@@ -113,6 +113,7 @@ Policies select pods with the label `ai.infra.guard/enabled: "true"`. Change thi
     ai-guard enforce --allow-fqdn models.example.com     # add an egress host (repeatable)
     ai-guard enforce --apply --dry-run                   # print what would be applied, change nothing
     ai-guard enforce --apply -n llm                      # server-side apply; -n makes the Cilium policy namespaced
+    ai-guard enforce --apply --context staging --yes    # pick the kubeconfig context, skip the prompt
     ai-guard enforce --apply --skip-cilium               # Kyverno policies only, for clusters without Cilium
 
 The Cilium policy allows Hugging Face hosts by default, including the two-label storage hosts, because a Cilium `*` matches one label only. `--apply` needs the Kyverno and Cilium CRDs in the cluster. On a cluster without Cilium, add `--skip-cilium` to generate and apply only the three Kyverno policies.
@@ -120,6 +121,7 @@ The Cilium policy allows Hugging Face hosts by default, including the two-label 
 Safety note:
 
 - The default mode is `Audit`. Policies report violations and block nothing. Review the reports, then use `--mode enforce`.
+- `--apply` prints the kubeconfig context and API server, checks that every policy kind exists in the cluster, and only then asks for confirmation. It changes nothing if one kind is missing. Pass `--yes` to skip the prompt; it is required when stdin is not a terminal (CI). `--context` picks a kubeconfig context other than the current one.
 - `--apply` uses server-side apply with force. It takes over fields of existing policies with the same names. Run `--dry-run` first.
 - Egress allowlists can break model downloads. Test in a non-production namespace first.
 

@@ -4,12 +4,21 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	dynamicfake "k8s.io/client-go/dynamic/fake"
+	clienttesting "k8s.io/client-go/testing"
+
 	"github.com/sv222/ai-guard-k8s/pkg/checks"
+	"github.com/sv222/ai-guard-k8s/pkg/enforce"
 )
 
 const (
@@ -401,5 +410,111 @@ func TestHardenedExamplesHaveNoFindings(t *testing.T) {
 		if !strings.Contains(string(b), "ai.infra.guard/enabled") {
 			t.Errorf("%s is not opted in to ai-guard policies", f)
 		}
+	}
+}
+
+func fakeCluster(withCilium bool) (enforce.Cluster, *int) {
+	patches := 0
+	client := dynamicfake.NewSimpleDynamicClient(runtime.NewScheme())
+	client.PrependReactor("patch", "*", func(clienttesting.Action) (bool, runtime.Object, error) {
+		patches++
+		return true, &unstructured.Unstructured{Object: map[string]interface{}{}}, nil
+	})
+	m := meta.NewDefaultRESTMapper(nil)
+	m.Add(schema.GroupVersionKind{Group: "kyverno.io", Version: "v1", Kind: "ClusterPolicy"}, meta.RESTScopeRoot)
+	if withCilium {
+		m.Add(schema.GroupVersionKind{Group: "cilium.io", Version: "v2", Kind: "CiliumClusterwideNetworkPolicy"}, meta.RESTScopeRoot)
+		m.Add(schema.GroupVersionKind{Group: "cilium.io", Version: "v2", Kind: "CiliumNetworkPolicy"}, meta.RESTScopeNamespace)
+	}
+	return enforce.Cluster{Context: "kind-test", Server: "https://127.0.0.1:6443", Client: client, Mapper: m}, &patches
+}
+
+func useFakeCluster(t *testing.T, withCilium, terminal bool) (*int, *string) {
+	t.Helper()
+	cluster, patches := fakeCluster(withCilium)
+	var gotContext string
+	oldConnect, oldTerm := connectCluster, isTerminal
+	connectCluster = func(kubeconfig, kubeContext string) (enforce.Cluster, error) {
+		gotContext = kubeContext
+		return cluster, nil
+	}
+	isTerminal = func(io.Reader) bool { return terminal }
+	t.Cleanup(func() { connectCluster, isTerminal = oldConnect, oldTerm })
+	return patches, &gotContext
+}
+
+func runWithStdin(t *testing.T, stdin string, args ...string) (stdout, stderr string, code int) {
+	t.Helper()
+	var o, e bytes.Buffer
+	root := NewRootCmd(&o, &e)
+	root.SetIn(strings.NewReader(stdin))
+	root.SetArgs(args)
+	err := root.Execute()
+	code = 0
+	var ee *ExitError
+	if errors.As(err, &ee) {
+		code = ee.Code
+		if ee.Err != nil {
+			e.WriteString("Error: " + ee.Err.Error() + "\n")
+		}
+	} else if err != nil {
+		code = 2
+	}
+	return o.String(), e.String(), code
+}
+
+func TestEnforceApplyNeedsYesWithoutTerminal(t *testing.T) {
+	patches, _ := useFakeCluster(t, true, false)
+	stdout, stderr, code := runWithStdin(t, "y\n", "enforce", "--apply")
+	if code != 2 || !strings.Contains(stderr, "--yes") {
+		t.Errorf("code=%d stderr=%q", code, stderr)
+	}
+	if *patches != 0 {
+		t.Errorf("%d policies applied without confirmation", *patches)
+	}
+	if !strings.Contains(stdout, `context "kind-test"`) || !strings.Contains(stdout, "https://127.0.0.1:6443") {
+		t.Errorf("cluster not printed: %q", stdout)
+	}
+}
+
+func TestEnforceApplyWithYes(t *testing.T) {
+	patches, gotContext := useFakeCluster(t, true, false)
+	stdout, stderr, code := runWithStdin(t, "", "enforce", "--apply", "--yes", "--context", "staging")
+	if code != 0 || *patches != 4 {
+		t.Fatalf("code=%d patches=%d stderr=%q", code, *patches, stderr)
+	}
+	if *gotContext != "staging" {
+		t.Errorf("context passed = %q", *gotContext)
+	}
+	if !strings.Contains(stdout, "applied CiliumClusterwideNetworkPolicy aig-inference-egress") {
+		t.Errorf("stdout = %q", stdout)
+	}
+}
+
+func TestEnforceApplyInteractive(t *testing.T) {
+	patches, _ := useFakeCluster(t, true, true)
+	_, stderr, code := runWithStdin(t, "n\n", "enforce", "--apply")
+	if code != 2 || !strings.Contains(stderr, "aborted") || *patches != 0 {
+		t.Errorf("decline: code=%d patches=%d stderr=%q", code, *patches, stderr)
+	}
+	_, _, code = runWithStdin(t, "", "enforce", "--apply")
+	if code != 2 || *patches != 0 {
+		t.Errorf("EOF must not confirm: code=%d patches=%d", code, *patches)
+	}
+	stdout, stderr, code := runWithStdin(t, "yes\n", "enforce", "--apply")
+	if code != 0 || *patches != 4 || !strings.Contains(stdout, "[y/N]") {
+		t.Errorf("accept: code=%d patches=%d stdout=%q stderr=%q", code, *patches, stdout, stderr)
+	}
+}
+
+func TestEnforceApplyMissingCiliumChangesNothing(t *testing.T) {
+	patches, _ := useFakeCluster(t, false, false)
+	_, stderr, code := runWithStdin(t, "", "enforce", "--apply", "--yes")
+	if code != 2 || *patches != 0 || !strings.Contains(stderr, "--skip-cilium") {
+		t.Errorf("code=%d patches=%d stderr=%q", code, *patches, stderr)
+	}
+	_, stderr, code = runWithStdin(t, "", "enforce", "--apply", "--yes", "--skip-cilium")
+	if code != 0 || *patches != 3 {
+		t.Errorf("skip-cilium: code=%d patches=%d stderr=%q", code, *patches, stderr)
 	}
 }

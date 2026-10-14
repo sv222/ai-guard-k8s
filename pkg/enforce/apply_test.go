@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -157,10 +158,69 @@ func TestPlan(t *testing.T) {
 
 func TestClientsWithoutKubeconfig(t *testing.T) {
 	t.Setenv("KUBECONFIG", filepath.Join(t.TempDir(), "missing"))
-	if _, _, err := Clients(""); err == nil {
+	if _, err := Connect("", ""); err == nil {
 		t.Error("expected error without a usable kubeconfig")
 	}
-	if _, _, err := Clients(filepath.Join(t.TempDir(), "explicit-missing")); err == nil {
+	if _, err := Connect(filepath.Join(t.TempDir(), "explicit-missing"), ""); err == nil {
 		t.Error("expected error for missing explicit kubeconfig")
+	}
+}
+
+func TestApplyMissingCRDChangesNothing(t *testing.T) {
+	client, patches := fakeClient()
+	if err := Apply(context.Background(), client, testMapper(false), defaultPolicies(t), "", &bytes.Buffer{}); err == nil {
+		t.Fatal("expected error")
+	}
+	if len(*patches) != 0 {
+		t.Errorf("%d policies were applied before the failure", len(*patches))
+	}
+}
+
+func TestMissingCRDErrorSuggestsSkipCilium(t *testing.T) {
+	err := Check(testMapper(false), defaultPolicies(t), "")
+	if err == nil || !strings.Contains(err.Error(), "--skip-cilium") {
+		t.Errorf("err = %v", err)
+	}
+	if err := Check(testMapper(true), defaultPolicies(t), ""); err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+const twoContextKubeconfig = `apiVersion: v1
+kind: Config
+current-context: dev
+clusters:
+- name: dev-cluster
+  cluster:
+    server: https://dev.example.invalid:6443
+- name: prod-cluster
+  cluster:
+    server: https://prod.example.invalid:6443
+users:
+- name: u
+  user:
+    token: not-a-real-token
+contexts:
+- name: dev
+  context: {cluster: dev-cluster, user: u}
+- name: prod
+  context: {cluster: prod-cluster, user: u}
+`
+
+func TestConnectUsesContext(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "kubeconfig")
+	if err := os.WriteFile(path, []byte(twoContextKubeconfig), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	c, err := Connect(path, "")
+	if err != nil || c.Context != "dev" || c.Server != "https://dev.example.invalid:6443" {
+		t.Errorf("default: %+v err=%v", c, err)
+	}
+	c, err = Connect(path, "prod")
+	if err != nil || c.Context != "prod" || c.Server != "https://prod.example.invalid:6443" {
+		t.Errorf("prod: %+v err=%v", c, err)
+	}
+	if _, err := Connect(path, "nope"); err == nil {
+		t.Error("expected error for unknown context")
 	}
 }

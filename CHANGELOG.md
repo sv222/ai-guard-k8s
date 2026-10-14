@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- `enforce --apply` prints the context and server, asks for confirmation (`--yes` skips it and is required without a terminal), accepts `--context`, and checks that all policy kinds exist before it applies the first one. Before, a missing Cilium CRD stopped the run after the Kyverno policies were applied.
 - The default Cilium egress policy is a `CiliumClusterwideNetworkPolicy`. Before, it was a `CiliumNetworkPolicy` that landed in the `default` namespace when you did not pass `-n`, so pods in other namespaces got no egress limit. `-n` still creates a namespaced `CiliumNetworkPolicy`. `--out` and `--apply` produce the same object. Delete the old `aig-inference-egress` policy from `default` after you switch.
 
 ### Added
