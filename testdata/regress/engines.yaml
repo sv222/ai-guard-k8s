@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: embed
+  namespace: llm
+spec:
+  selector:
+    matchLabels:
+      app: embed
+  template:
+    metadata:
+      labels:
+        app: embed
+    spec:
+      containers:
+        - name: server
+          image: ghcr.io/huggingface/text-embeddings-inference:1.9.3
+          command: ["text-embeddings-router"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: embed
+  namespace: llm
+spec:
+  type: LoadBalancer
+  selector:
+    app: embed
+  ports:
+    - port: 80
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: assistant
+  namespace: llm
+spec:
+  selector:
+    matchLabels:
+      app: assistant
+  template:
+    metadata:
+      labels:
+        app: assistant
+    spec:
+      containers:
+        - name: server
+          image: quay.io/go-skynet/local-ai:latest
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chat
+  namespace: llm
+spec:
+  selector:
+    matchLabels:
+      app: chat
+  template:
+    metadata:
+      labels:
+        app: chat
+    spec:
+      containers:
+        - name: server
+          image: lmsysorg/sglang:v0.4.6
+        - name: cpu
+          image: ghcr.io/ggml-org/llama.cpp:server

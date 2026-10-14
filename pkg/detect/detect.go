@@ -12,6 +12,7 @@ const EnableLabel = "ai.infra.guard/enabled"
 
 var patterns = []string{
 	"vllm", "ollama", "tritonserver", "text-generation-inference", "tgi", "ray-serve",
+	"text-embeddings-inference", "local-ai", "localai", "sglang", "llama.cpp", "llama-cpp", "lmdeploy", "tensorrt-llm",
 }
 
 var wordPatterns = map[string]bool{"tgi": true}

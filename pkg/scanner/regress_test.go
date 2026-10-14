@@ -37,3 +37,27 @@ func TestRegressHelmTestHookPodIsSkipped(t *testing.T) {
 func TestRegressTgiSubstringIsNotAnEngine(t *testing.T) {
 	wantIDs(t, scanRegress(t, "postgis.yaml"), map[string]int{})
 }
+
+func TestRegressEnginesBeyondTheFirstList(t *testing.T) {
+	res, err := Scan(context.Background(), Options{Path: regress + "/engines.yaml"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	perWorkload := map[string]int{}
+	for _, f := range res.Findings {
+		if f.ID == "AIG-001" {
+			perWorkload[f.Name]++
+		}
+	}
+	for _, name := range []string{"embed", "assistant"} {
+		if perWorkload[name] != 1 {
+			t.Errorf("AIG-001 on %s = %d, want 1; got %v", name, perWorkload[name], perWorkload)
+		}
+	}
+	if perWorkload["chat"] != 2 {
+		t.Errorf("AIG-001 on chat = %d, want 2; got %v", perWorkload["chat"], perWorkload)
+	}
+	if got := idSet(res.Findings)["AIG-010"]; got != 1 {
+		t.Errorf("AIG-010 = %d, want 1 (embed behind a LoadBalancer)", got)
+	}
+}
