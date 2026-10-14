@@ -518,3 +518,17 @@ func TestEnforceApplyMissingCiliumChangesNothing(t *testing.T) {
 		t.Errorf("skip-cilium: code=%d patches=%d stderr=%q", code, *patches, stderr)
 	}
 }
+
+func TestScanWarnsAboutMissingEnforceLabel(t *testing.T) {
+	_, stderr, code := run(t, "scan", "--path", offendingDir)
+	if code != 1 || !strings.Contains(stderr, "pod template lacks the label ai.infra.guard/enabled=true") {
+		t.Errorf("code=%d stderr=%q", code, stderr)
+	}
+	_, stderr, _ = run(t, "scan", "--path", offendingDir, "--enforce-selector", "")
+	if strings.Contains(stderr, "pod template lacks") {
+		t.Errorf("warning not disabled: %q", stderr)
+	}
+	if _, stderr, code := run(t, "scan", "--path", offendingDir, "--enforce-selector", "nokey"); code != 2 || !strings.Contains(stderr, "enforce selector") {
+		t.Errorf("invalid selector: code=%d stderr=%q", code, stderr)
+	}
+}

@@ -8,11 +8,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- Findings are sorted by namespace, name, kind, ID, title and evidence, so the order no longer depends on the input order.
 - `enforce --apply` prints the context and server, asks for confirmation (`--yes` skips it and is required without a terminal), accepts `--context`, and checks that all policy kinds exist before it applies the first one. Before, a missing Cilium CRD stopped the run after the Kyverno policies were applied.
 - The default Cilium egress policy is a `CiliumClusterwideNetworkPolicy`. Before, it was a `CiliumNetworkPolicy` that landed in the `default` namespace when you did not pass `-n`, so pods in other namespaces got no egress limit. `-n` still creates a namespaced `CiliumNetworkPolicy`. `--out` and `--apply` produce the same object. Delete the old `aig-inference-egress` policy from `default` after you switch.
 
 ### Added
 
+- `scan` warns when an AI workload lacks the `enforce` label on its pod template, because the generated policies would skip its pods. The warning does not change the exit code. `--enforce-selector` sets the label to look for (default `ai.infra.guard/enabled=true`); an empty value turns the warning off.
 - ReplicaSets, ReplicationControllers and Argo Rollouts are scanned. Cluster scans list ReplicaSets that are not owned by a Deployment and ReplicationControllers (skipped at 0 replicas), which also makes Rollout pods visible. Manifests accept `kind: ReplicaSet`, `ReplicationController` and `Rollout` (`argoproj.io`). The cluster scan now needs list access to `replicasets` and `replicationcontrollers`.
 - `ai-guard scan --lenient` keeps decode errors as warnings. Without it, a file that cannot be decoded makes `scan --path` exit with 2.
 - `ai-guard enforce --skip-cilium` generates and applies only the Kyverno policies. `--apply` stopped with an error on clusters without Cilium CRDs after applying the Kyverno policies.

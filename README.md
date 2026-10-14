@@ -133,7 +133,7 @@ flowchart LR
     B --> C[Run checks AIG-001 to AIG-010]
     C --> D[Table or JSON report]
     D --> E[Exit code 0, 1 or 2]
-    C -.->|same selector| F[ai-guard enforce]
+    C -.->|pod label| F[ai-guard enforce]
     F --> G[Kyverno and Cilium policies]
 ```
 
@@ -141,7 +141,7 @@ Design decisions:
 
 1. **Static and read-only by default.** `scan` only lists objects. It never changes the cluster. Only `enforce --apply` writes, and only when you ask.
 2. **Audit before Enforce.** Generated policies start in `Audit` so you see the impact before anything is blocked.
-3. **Same selector for scan and policies.** Both use the label `ai.infra.guard/enabled`, so the pods you scan are the pods you harden.
+3. **Scan and policies select differently.** `scan` finds AI workloads by name, image, command, the label or annotation `ai.infra.guard/enabled` on the workload or its pod template, or `--workload-selector`. The generated policies match only the labels on the pod (`ai.infra.guard/enabled: "true"` by default). A workload found by name or image but without the label on its pod template is scanned, but not hardened by the policies. `scan` prints a warning for each one (see `--enforce-selector`). Put the label in the pod template, not only on the Deployment.
 
 ## Use in CI
 

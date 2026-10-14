@@ -167,3 +167,56 @@ func TestClusterPodOwnedByDeploymentNotDuplicated(t *testing.T) {
 		}
 	}
 }
+
+func TestAnalyzeWarnsWhenPodTemplateLacksEnforceLabel(t *testing.T) {
+	pod := func(name string, tplLabels, metaLabels map[string]string) target.WorkloadTarget {
+		return target.WorkloadTarget{
+			Kind: "Deployment", Namespace: "llm", Name: name, Labels: tplLabels, MetaLabels: metaLabels,
+			PodSpec: corev1.PodSpec{Containers: []corev1.Container{{Name: "c", Image: "vllm/vllm-openai"}}},
+		}
+	}
+	ds := target.DirScan{Targets: []target.WorkloadTarget{
+		pod("labeled", map[string]string{"ai.infra.guard/enabled": "true"}, nil),
+		pod("only-on-deployment", nil, map[string]string{"ai.infra.guard/enabled": "true"}),
+		pod("unlabeled", map[string]string{"app": "x"}, nil),
+	}}
+	_, warnings := AnalyzeWith(ds, "", "ai.infra.guard/enabled=true")
+	if len(warnings) != 2 {
+		t.Fatalf("warnings = %v", warnings)
+	}
+	for _, w := range warnings {
+		if strings.Contains(w, "llm/labeled") || !strings.Contains(w, "ai.infra.guard/enabled=true") {
+			t.Errorf("unexpected warning %q", w)
+		}
+	}
+	if _, warnings := AnalyzeWith(ds, "", ""); len(warnings) != 0 {
+		t.Errorf("empty enforce selector must not warn: %v", warnings)
+	}
+	_, warnings = AnalyzeWith(ds, "", "team=llm")
+	if len(warnings) != 3 {
+		t.Errorf("custom enforce selector warnings = %v", warnings)
+	}
+}
+
+func TestScanInvalidEnforceSelector(t *testing.T) {
+	if _, err := Scan(context.Background(), Options{Path: fixtures + "/clean", EnforceSelector: "nokey"}); err == nil {
+		t.Error("expected error")
+	}
+}
+
+func TestScanWarningsAreUnique(t *testing.T) {
+	res, err := Scan(context.Background(), Options{Path: fixtures + "/offending", EnforceSelector: "ai.infra.guard/enabled=true"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := map[string]bool{}
+	for _, w := range res.Warnings {
+		if seen[w] {
+			t.Errorf("duplicate warning %q", w)
+		}
+		seen[w] = true
+	}
+	if len(res.Warnings) == 0 {
+		t.Error("offending sample should lack the enforce label")
+	}
+}

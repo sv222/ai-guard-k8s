@@ -8,6 +8,7 @@ import (
 	"github.com/sv222/ai-guard-k8s/pkg/checks"
 	"github.com/sv222/ai-guard-k8s/pkg/report"
 	"github.com/sv222/ai-guard-k8s/pkg/scanner"
+	selpkg "github.com/sv222/ai-guard-k8s/pkg/selector"
 )
 
 func newScanCmd(kubeconfig *string) *cobra.Command {
@@ -20,6 +21,8 @@ func newScanCmd(kubeconfig *string) *cobra.Command {
 		failOn    string
 		offline   bool
 		lenient   bool
+
+		enforceSel string
 	)
 	c := &cobra.Command{
 		Use:   "scan",
@@ -44,6 +47,8 @@ func newScanCmd(kubeconfig *string) *cobra.Command {
 				Kubeconfig: *kubeconfig,
 				Namespace:  namespace,
 				Selector:   selector,
+
+				EnforceSelector: enforceSel,
 			})
 			if err != nil {
 				for _, w := range res.Warnings {
@@ -77,6 +82,7 @@ func newScanCmd(kubeconfig *string) *cobra.Command {
 	c.Flags().StringVar(&selector, "workload-selector", "", "extra label selector marking AI workloads, for example tier=inference")
 	c.Flags().StringVarP(&namespace, "namespace", "n", "", "cluster namespace (empty = all)")
 	c.Flags().StringVar(&failOn, "fail-on", "low", "lowest severity that makes the exit code 1: low, medium or high")
+	c.Flags().StringVar(&enforceSel, "enforce-selector", selpkg.DefaultEnforce, "label selector that ai-guard enforce uses; AI workloads whose pod template lacks it get a warning (empty = no warning)")
 	c.Flags().BoolVar(&lenient, "lenient", false, "with --path, do not fail when some files cannot be decoded (they are still listed as warnings)")
 	c.Flags().BoolVar(&offline, "offline", false, "deprecated no-op: --path already skips the cluster")
 	_ = c.Flags().MarkHidden("offline")
