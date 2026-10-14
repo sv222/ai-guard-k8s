@@ -111,8 +111,9 @@ Policies select pods with the label `ai.infra.guard/enabled: "true"`. Change thi
     ai-guard enforce --allow-fqdn models.example.com     # add an egress host (repeatable)
     ai-guard enforce --apply --dry-run                   # print what would be applied, change nothing
     ai-guard enforce --apply -n llm                      # server-side apply; -n sets the Cilium policy namespace
+    ai-guard enforce --apply --skip-cilium               # Kyverno policies only, for clusters without Cilium
 
-The Cilium policy allows Hugging Face hosts by default, including the two-label storage hosts, because a Cilium `*` matches one label only. `--apply` needs the Kyverno and Cilium CRDs in the cluster.
+The Cilium policy allows Hugging Face hosts by default, including the two-label storage hosts, because a Cilium `*` matches one label only. `--apply` needs the Kyverno and Cilium CRDs in the cluster. On a cluster without Cilium, add `--skip-cilium` to generate and apply only the three Kyverno policies.
 
 Safety note:
 
@@ -168,7 +169,55 @@ Tests on a real kind cluster (Kubernetes 1.37):
 Not verified:
 
 - Cilium DNS-based (FQDN) egress could not be demonstrated in the kind test environment. The policy is accepted, but allow and deny behavior for real hosts is untested.
-- The tests used small stand-in images, not real vLLM or Ollama containers.
+- The tests above used small stand-in images. Real Ollama and vLLM containers were tested separately (see below).
+
+### Hardened examples (tested on kind)
+
+[`examples/hardened/ollama.yaml`](examples/hardened/ollama.yaml) and [`examples/hardened/vllm.yaml`](examples/hardened/vllm.yaml) are complete manifests: Namespace, Deployment, ClusterIP Service and an ingress NetworkPolicy (vLLM also has a Secret). `ai-guard scan --path examples/hardened` reports no findings. A unit test checks this in CI. Copy them and change the image tag, the model and the limits. The vLLM Secret holds a placeholder: replace `REPLACE_WITH_A_RANDOM_KEY` before you apply it.
+
+Tested on 2026-10-14 on a single-node kind v0.33.0 cluster (Kubernetes 1.37.0, default kindnet CNI). The host had an Intel i7-4710HQ (AVX2 only, no AVX-512) and 12 GB RAM. Kyverno 1.19.1 ran with one admission controller. The policies came from `ai-guard enforce --apply --mode enforce --skip-cilium`.
+
+| | Ollama | vLLM |
+|---|---|---|
+| Image | `ollama/ollama:0.40.4` | `vllm/vllm-openai-cpu:v0.31.0-x86_64` |
+| Model | `qwen2.5:0.5b`, pulled inside the running pod | `facebook/opt-125m`, `--dtype=float32` |
+| Scan | no findings | no findings |
+| Admission | admitted, Ready, UID 10001 | admitted, Ready, UID 10001 |
+| Inference | `/api/generate` and `/v1/chat/completions` answered through the Service in about 3 s | `/v1/completions` answered through the Service. The first request took about 2 minutes. Later requests took 0.5 s |
+| Auth | none in the engine (by design) | `/v1/models` and `/v1/completions` gave 401 without a key and with a wrong key, 200 with the key |
+| NetworkPolicy | a client pod without the allowed label timed out | same |
+
+`ai-guard scan -n llm` on the live cluster also reported no findings for the running vLLM pod.
+
+Both containers ran with `runAsNonRoot`, a non-zero UID, `allowPrivilegeEscalation: false`, `capabilities.drop: [ALL]`, `seccompProfile: RuntimeDefault` and `readOnlyRootFilesystem: true`. Writable paths are `emptyDir` volumes. Neither needed an exception.
+
+What the engines needed to run this way:
+
+- Ollama: `HOME=/data`, `OLLAMA_MODELS=/data/models` on an `emptyDir`, and `OLLAMA_HOST=0.0.0.0:11434`. The image runs as root by default and keeps its key and models under `/root/.ollama`.
+- vLLM: `enableServiceLinks: false`. Without it, a Service named `vllm` injects `VLLM_PORT=tcp://<ip>:8000` into the pod and vLLM exits with `VLLM_PORT ... appears to be a URI`. The pod crash-looped until this was set. The same risk exists for any Service whose name makes a `VLLM_*` variable.
+- vLLM: `HOME`, `HF_HOME`, `VLLM_CACHE_ROOT` and similar paths on an `emptyDir`, plus an `emptyDir` with `medium: Memory` on `/dev/shm`.
+- The vLLM docs suggest `--cap-add SYS_NICE` and `seccomp=unconfined` for Docker. Neither was needed here. With `RuntimeDefault` the logs show `get_mempolicy` and `set_mempolicy` "Operation not permitted" warnings (NUMA binding is skipped) and no failure. The host had one NUMA node. Multi-socket hosts were not tested.
+- The vLLM flags `--enforce-eager`, `--max-model-len=512`, `VLLM_CPU_KVCACHE_SPACE=1` and `VLLM_CPU_OMP_THREADS_BIND=nobind` keep memory low on a small host. I did not test which of them are required.
+- The Ollama manifest sets `ai.infra.guard/gateway-auth: "true"`. Ollama has no auth, so without this annotation AIG-001 reports Medium. The annotation is the manifest author's claim that the NetworkPolicy limits clients. ai-guard cannot check it.
+
+Bad variants were created as Deployments and as bare Pods in the same namespace with Kyverno in Enforce mode: root user, privileged, `hostNetwork: true`, and no resource limits. The same four variants were used with the Ollama image and with the vLLM image. Every bare Pod was rejected at admission, for example:
+
+    admission webhook "validate.kyverno.svc-fail" denied the request:
+    resource Pod/llm/ollama-bad-hostnetwork was blocked due to the following policies
+    aig-block-host-access:
+      block-host-access: 'validation error: AI inference pods must not use hostNetwork, hostPID or hostPath volumes. rule block-host-access failed at path /spec/hostNetwork/'
+
+**Deployments are not rejected, their pods are.** Kyverno does not generate rules for pod controllers when a rule matches by `selector`, and the generated policies match by label. Applying a bad Deployment succeeds. The ReplicaSet then fails to create pods, and the same Kyverno message appears in its events (`kubectl describe rs`). The Deployment shows `0/1` ready. CI that only checks the result of `kubectl apply` will not see the block. Run `ai-guard scan` in CI as well.
+
+Not tested:
+
+- GPU images, larger models, real memory use under load, and more than one replica.
+- The Cilium policy and egress limits. The example NetworkPolicy covers ingress only, because model download needs egress.
+- Kyverno Audit mode with the background controller and policy reports. Only the admission controller ran.
+- Other CNIs, other Kubernetes versions, Helm charts and Ingress.
+- The Kyverno policies do not check seccomp or `readOnlyRootFilesystem`. AIG-006 covers seccomp in `scan` only.
+
+vLLM routes outside `/v1` are not behind the key. In this test `/health`, `/metrics`, `/version` and `/ping` answered 200 without a key, and `/tokenize` answered 405 (not 401) to an unauthenticated GET. This matches the vLLM security docs.
 
 ### Tested on real Helm charts
 
@@ -199,7 +248,8 @@ Known gaps from this run:
 
 - Read Helm charts and Kustomize overlays directly.
 - Check more engine settings, for example `hostIPC`, capabilities and Gateway API routes.
-- Test the generated policies with real inference containers and Cilium FQDN egress.
+- Test Cilium FQDN egress with real inference containers.
+- Generate Kyverno rules that reject Deployments and other pod controllers, not only their pods.
 - SARIF output for GitHub code scanning.
 
 Ideas and bug reports are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md). Report security issues as described in [SECURITY.md](SECURITY.md).

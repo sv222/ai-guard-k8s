@@ -324,3 +324,24 @@ func TestEnforceSkipCilium(t *testing.T) {
 		t.Error("cilium file written")
 	}
 }
+
+func TestHardenedExamplesHaveNoFindings(t *testing.T) {
+	brokenKubeconfig(t)
+	stdout, stderr, code := run(t, "scan", "--path", "../examples/hardened", "--fail-on", "low")
+	if code != 0 || !strings.Contains(stdout, "No findings") {
+		t.Fatalf("code=%d stdout=%s stderr=%s", code, stdout, stderr)
+	}
+	files, err := filepath.Glob("../examples/hardened/*.yaml")
+	if err != nil || len(files) < 2 {
+		t.Fatalf("examples missing: %v %v", files, err)
+	}
+	for _, f := range files {
+		b, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(b), "ai.infra.guard/enabled") {
+			t.Errorf("%s is not opted in to ai-guard policies", f)
+		}
+	}
+}

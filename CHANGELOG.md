@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- `ai-guard enforce --skip-cilium` generates and applies only the Kyverno policies. `--apply` stopped with an error on clusters without Cilium CRDs after applying the Kyverno policies.
+- `examples/hardened/ollama.yaml` and `examples/hardened/vllm.yaml`: manifests with no findings, tested with Ollama 0.40.4 and vLLM 0.31.0 (CPU) on kind with the generated Kyverno policies in Enforce mode. A test checks that they stay clean. See the README section Hardened examples.
 - AIG-010 also reports workloads exposed through an Ingress that routes to a Service selecting them. Ingress auth annotations and `ai.infra.guard/gateway-auth: "true"` on the Ingress count as auth evidence. Cluster scans list Ingresses; a permission error gives a warning instead of failing the scan.
 
 ### Fixed
