@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-14
+
 ### Changed
 
 - GitHub Actions are pinned by commit SHA, GoReleaser and tool versions are pinned, builds use `-trimpath`, and the release job gets only the permissions it needs. CI and release use Go 1.27.2. The README CI example pins ai-guard to a version.
@@ -80,6 +82,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Label `ai.infra.guard/enabled` and annotation `ai.infra.guard/gateway-auth`.
 - Policy pack in `policies/`, checked by a golden test.
 
-[Unreleased]: https://github.com/sv222/ai-guard-k8s/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/sv222/ai-guard-k8s/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/sv222/ai-guard-k8s/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/sv222/ai-guard-k8s/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/sv222/ai-guard-k8s/releases/tag/v0.1.0
