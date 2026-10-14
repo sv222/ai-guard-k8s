@@ -120,3 +120,19 @@ func TestRegressSelectorOptInWithCustomImage(t *testing.T) {
 		t.Errorf("AIG-001 = %d, want 1 for a selected single-container workload", got["AIG-001"])
 	}
 }
+
+func TestRegressEnvFromTokenSecretIsNotEngineAuth(t *testing.T) {
+	res, err := Scan(context.Background(), Options{Path: regress + "/envfrom-secrets.yaml"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]int{}
+	for _, f := range res.Findings {
+		if f.ID == "AIG-001" {
+			got[f.Name]++
+		}
+	}
+	if got["vllm-hf"] != 1 || got["vllm-keyed"] != 0 {
+		t.Errorf("AIG-001 by workload = %v, want vllm-hf 1 and vllm-keyed 0", got)
+	}
+}

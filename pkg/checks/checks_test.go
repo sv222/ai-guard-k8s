@@ -113,6 +113,26 @@ func TestPodSpecChecks(t *testing.T) {
 			c.Args = nil
 			c.EnvFrom = []corev1.EnvFromSource{{SecretRef: &corev1.SecretEnvSource{LocalObjectReference: corev1.LocalObjectReference{Name: "vllm-API-Key"}}}}
 		}), "AIG-001", 0},
+		{"001 vllm envFrom hugging face token is not auth", container(func(c *corev1.Container) {
+			c.Args = nil
+			c.EnvFrom = []corev1.EnvFromSource{{SecretRef: &corev1.SecretEnvSource{LocalObjectReference: corev1.LocalObjectReference{Name: "hf-token"}}}}
+		}), "AIG-001", 1},
+		{"001 vllm envFrom cloud credentials are not auth", container(func(c *corev1.Container) {
+			c.Args = nil
+			c.EnvFrom = []corev1.EnvFromSource{{SecretRef: &corev1.SecretEnvSource{LocalObjectReference: corev1.LocalObjectReference{Name: "aws-credentials"}}}}
+		}), "AIG-001", 1},
+		{"001 vllm envFrom registry auth is not engine auth", container(func(c *corev1.Container) {
+			c.Args = nil
+			c.EnvFrom = []corev1.EnvFromSource{{SecretRef: &corev1.SecretEnvSource{LocalObjectReference: corev1.LocalObjectReference{Name: "registry-auth"}}}}
+		}), "AIG-001", 1},
+		{"001 vllm envFrom api token", container(func(c *corev1.Container) {
+			c.Args = nil
+			c.EnvFrom = []corev1.EnvFromSource{{SecretRef: &corev1.SecretEnvSource{LocalObjectReference: corev1.LocalObjectReference{Name: "vllm-api-token"}}}}
+		}), "AIG-001", 0},
+		{"001 vllm envFrom auth secret", container(func(c *corev1.Container) {
+			c.Args = nil
+			c.EnvFrom = []corev1.EnvFromSource{{SecretRef: &corev1.SecretEnvSource{LocalObjectReference: corev1.LocalObjectReference{Name: "vllm-auth"}}}}
+		}), "AIG-001", 0},
 		{"001 vllm unrelated envFrom secret", container(func(c *corev1.Container) {
 			c.Args = nil
 			c.EnvFrom = []corev1.EnvFromSource{{SecretRef: &corev1.SecretEnvSource{LocalObjectReference: corev1.LocalObjectReference{Name: "hf-settings"}}}}

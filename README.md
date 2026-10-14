@@ -81,7 +81,7 @@ A workload counts as AI inference if its name or an image contains `vllm`, `olla
 
 | ID | Risk | Severity | How it is detected | Fix | Maps to |
 |---|---|---|---|---|---|
-| AIG-001 | No auth on the engine | High (vLLM), Medium (others) | No `--api-key` arg and no `VLLM_API_KEY`, `API_KEY` or `OPENAI_API_KEY` env | Set an API key, or annotate `ai.infra.guard/gateway-auth: "true"` if a gateway authenticates | - |
+| AIG-001 | No auth on the engine | High (vLLM), Medium (others) | No `--api-key` arg, no `VLLM_API_KEY`, `API_KEY` or `OPENAI_API_KEY` env, and no `envFrom` Secret named like api-key, api-token, auth or bearer (names with hf, aws, s3, registry or tls do not count) | Set an API key, or annotate `ai.infra.guard/gateway-auth: "true"` if a gateway authenticates | - |
 | AIG-002 | Debug or insecure endpoint | Medium | `--debug`, `--allow-http`, or `OLLAMA_DEBUG` set to `true` or `1` | Remove it | - |
 | AIG-003 | Host namespaces | High | `hostNetwork` or `hostPID` is true | Set both to false | PSS Baseline: Host Namespaces (`hostIPC` is not checked) |
 | AIG-004 | `hostPath` volume | High | Any `hostPath` volume | Use a PVC or `emptyDir` | PSS Baseline: HostPath Volumes |

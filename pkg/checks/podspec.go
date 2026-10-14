@@ -13,7 +13,12 @@ var Registry = []CheckFunc{aig001, aig002, aig003, aig004, aig005, aig006, aig00
 
 var authEnvNames = []string{"VLLM_API_KEY", "API_KEY", "OPENAI_API_KEY"}
 
-var authSecretHints = []string{"key", "token", "auth", "cred"}
+var authSecretHints = []string{"api-key", "apikey", "api_key", "api-token", "apitoken", "api_token", "auth", "bearer"}
+
+var nonAuthSecretWords = map[string]bool{
+	"hf": true, "huggingface": true, "hugging": true, "aws": true, "s3": true, "gcs": true, "gcp": true, "azure": true,
+	"registry": true, "pull": true, "docker": true, "tls": true, "ssh": true,
+}
 
 var unsafeModelExts = []string{".bin", ".pt", ".pth", ".pkl", ".pickle", ".ckpt"}
 
@@ -313,10 +318,25 @@ func hasAuthEnvFrom(c corev1.Container) bool {
 			continue
 		}
 		name := strings.ToLower(ef.SecretRef.Name)
+		if hasNonAuthWord(name) {
+			continue
+		}
 		for _, hint := range authSecretHints {
 			if strings.Contains(name, hint) {
 				return true
 			}
+		}
+	}
+	return false
+}
+
+func hasNonAuthWord(name string) bool {
+	words := strings.FieldsFunc(name, func(r rune) bool {
+		return !(r >= 'a' && r <= 'z' || r >= '0' && r <= '9')
+	})
+	for _, w := range words {
+		if nonAuthSecretWords[w] {
+			return true
 		}
 	}
 	return false
