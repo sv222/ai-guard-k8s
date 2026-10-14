@@ -64,7 +64,7 @@ func IsAIWorkload(w target.WorkloadTarget, extraSelector string) bool {
 		return true
 	}
 	for _, c := range w.Containers() {
-		if engineFromCommand(target.CommandLine(c)) != "" {
+		if Engine(c) != "" {
 			return true
 		}
 	}
@@ -109,6 +109,9 @@ func Engine(c corev1.Container) string {
 		if containsPattern(img, p) {
 			return p
 		}
+	}
+	if isRayImage(img) && hasServeToken(target.CommandLine(c)) {
+		return "ray-serve"
 	}
 	return engineFromCommand(target.CommandLine(c))
 }
@@ -156,4 +159,24 @@ func engineFromCommand(tokens []string) string {
 		}
 	}
 	return ""
+}
+
+func isRayImage(img string) bool {
+	if i := strings.IndexAny(img, "@"); i >= 0 {
+		img = img[:i]
+	}
+	if i := strings.LastIndex(img, ":"); i > strings.LastIndex(img, "/") {
+		img = img[:i]
+	}
+	base := path.Base(img)
+	return strings.Contains(img, "rayproject/ray") || base == "ray" || strings.HasPrefix(base, "ray-")
+}
+
+func hasServeToken(tokens []string) bool {
+	for _, t := range tokens {
+		if strings.ToLower(strings.Trim(t, "\"';")) == "serve" {
+			return true
+		}
+	}
+	return false
 }

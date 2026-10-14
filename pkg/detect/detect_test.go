@@ -132,6 +132,11 @@ func TestEngineFromCommand(t *testing.T) {
 		{"tei router", corev1.Container{Image: "x", Command: []string{"text-embeddings-router"}}, "text-embeddings-inference"},
 		{"value only", corev1.Container{Image: "x", Args: []string{"--backend", "vllm"}}, ""},
 		{"url", corev1.Container{Image: "x", Command: []string{"curl", "http://vllm:8000/health"}}, ""},
+		{"ray image with serve run", corev1.Container{Image: "rayproject/ray:2.9.0", Command: []string{"serve", "run", "app:model"}}, "ray-serve"},
+		{"ray image with ray serve", corev1.Container{Image: "docker.io/rayproject/ray-ml:2.9.0-gpu", Command: []string{"sh", "-c", "ray serve deploy config.yaml"}}, "ray-serve"},
+		{"ray image without serve", corev1.Container{Image: "rayproject/ray:2.9.0", Command: []string{"ray", "start", "--head"}}, ""},
+		{"serve on an unrelated image", corev1.Container{Image: "nginx", Command: []string{"serve", "run"}}, ""},
+		{"ray image by digest", corev1.Container{Image: "anyscale/ray:abc", Args: []string{"serve", "start"}}, "ray-serve"},
 		{"image wins", corev1.Container{Image: "vllm/vllm-openai", Command: []string{"sleep", "1"}}, "vllm"},
 	}
 	for _, tt := range tests {
