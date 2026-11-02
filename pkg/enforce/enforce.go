@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/sv222/ai-guard-k8s/pkg/selector"
@@ -87,13 +88,13 @@ func Policies(o Options) ([]PolicyFile, error) {
 		name  string
 		rules []obj
 	}{
-		{"aig-require-nonroot", []obj{
-			rule("require-nonroot", sel, nonRootRule()),
-			rule("disallow-privilege-escalation", sel, privilegeEscalationRule()),
-			rule("disallow-privileged", sel, privilegedRule()),
-		}},
-		{"aig-block-host-access", []obj{rule("block-host-access", sel, hostAccessRule())}},
-		{"aig-require-resources", []obj{rule("require-resources", sel, resourcesRule())}},
+		{"aig-require-nonroot", rules(sel,
+			"require-nonroot", nonRootRule(),
+			"disallow-privilege-escalation", privilegeEscalationRule(),
+			"disallow-privileged", privilegedRule(),
+		)},
+		{"aig-block-host-access", rules(sel, "block-host-access", hostAccessRule())},
+		{"aig-require-resources", rules(sel, "require-resources", resourcesRule())},
 	}
 
 	var files []PolicyFile
@@ -156,6 +157,19 @@ func mergeFQDNs(extra []string) ([]string, error) {
 	return out, nil
 }
 
+var controllerKinds = []string{"Deployment", "StatefulSet", "DaemonSet", "Job"}
+
+func rules(sel map[string]string, pairs ...interface{}) []obj {
+	var pod, ctl, cron []obj
+	for i := 0; i < len(pairs); i += 2 {
+		name, v := pairs[i].(string), pairs[i+1].(obj)
+		pod = append(pod, rule(name, sel, v))
+		ctl = append(ctl, templateRule(name+"-controllers", controllerKinds, []string{"spec", "template"}, sel, v))
+		cron = append(cron, templateRule(name+"-cronjobs", []string{"CronJob"}, []string{"spec", "jobTemplate", "spec", "template"}, sel, v))
+	}
+	return append(append(pod, ctl...), cron...)
+}
+
 func rule(name string, sel map[string]string, validate obj) obj {
 	return obj{
 		"name": name,
@@ -168,6 +182,47 @@ func rule(name string, sel map[string]string, validate obj) obj {
 		}}}},
 		"validate": validate,
 	}
+}
+
+func templateRule(name string, kinds, path []string, sel map[string]string, validate obj) obj {
+	keys := make([]string, 0, len(sel))
+	for k := range sel {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	conds := make([]obj, 0, len(keys))
+	for _, k := range keys {
+		conds = append(conds, obj{
+			"key":      fmt.Sprintf(`{{ request.object.%s.metadata.labels."%s" || '' }}`, strings.Join(path, "."), k),
+			"operator": "Equals",
+			"value":    sel[k],
+		})
+	}
+	v := obj{"message": validate["message"]}
+	if p, ok := validate["pattern"]; ok {
+		v["pattern"] = nest(path, p.(obj))
+	}
+	if ps, ok := validate["anyPattern"]; ok {
+		var out []obj
+		for _, p := range ps.([]obj) {
+			out = append(out, nest(path, p))
+		}
+		v["anyPattern"] = out
+	}
+	return obj{
+		"name":          name,
+		"match":         obj{"any": []obj{{"resources": obj{"kinds": kinds}}}},
+		"exclude":       obj{"any": []obj{{"resources": obj{"namespaces": excludedNamespaces}}}},
+		"preconditions": obj{"all": conds},
+		"validate":      v,
+	}
+}
+
+func nest(path []string, p obj) obj {
+	for i := len(path) - 1; i >= 0; i-- {
+		p = obj{path[i]: p}
+	}
+	return p
 }
 
 func nonRootRule() obj {

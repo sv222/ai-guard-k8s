@@ -37,4 +37,83 @@ spec:
             - =(hostPort): 0
           =(volumes):
           - X(hostPath): "null"
+  - exclude:
+      any:
+      - resources:
+          namespaces:
+          - kube-system
+          - kube-public
+          - kube-node-lease
+    match:
+      any:
+      - resources:
+          kinds:
+          - Deployment
+          - StatefulSet
+          - DaemonSet
+          - Job
+    name: block-host-access-controllers
+    preconditions:
+      all:
+      - key: '{{ request.object.spec.template.metadata.labels."ai.infra.guard/enabled"
+          || '''' }}'
+        operator: Equals
+        value: "true"
+    validate:
+      message: AI inference pods must not use hostNetwork, hostPID, hostIPC, hostPort
+        or hostPath volumes
+      pattern:
+        spec:
+          template:
+            spec:
+              =(containers):
+              - =(ports):
+                - =(hostPort): 0
+              =(hostIPC): "false"
+              =(hostNetwork): "false"
+              =(hostPID): "false"
+              =(initContainers):
+              - =(ports):
+                - =(hostPort): 0
+              =(volumes):
+              - X(hostPath): "null"
+  - exclude:
+      any:
+      - resources:
+          namespaces:
+          - kube-system
+          - kube-public
+          - kube-node-lease
+    match:
+      any:
+      - resources:
+          kinds:
+          - CronJob
+    name: block-host-access-cronjobs
+    preconditions:
+      all:
+      - key: '{{ request.object.spec.jobTemplate.spec.template.metadata.labels."ai.infra.guard/enabled"
+          || '''' }}'
+        operator: Equals
+        value: "true"
+    validate:
+      message: AI inference pods must not use hostNetwork, hostPID, hostIPC, hostPort
+        or hostPath volumes
+      pattern:
+        spec:
+          jobTemplate:
+            spec:
+              template:
+                spec:
+                  =(containers):
+                  - =(ports):
+                    - =(hostPort): 0
+                  =(hostIPC): "false"
+                  =(hostNetwork): "false"
+                  =(hostPID): "false"
+                  =(initContainers):
+                  - =(ports):
+                    - =(hostPort): 0
+                  =(volumes):
+                  - X(hostPath): "null"
   validationFailureAction: Audit

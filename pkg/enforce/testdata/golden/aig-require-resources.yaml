@@ -39,4 +39,87 @@ spec:
               requests:
                 cpu: ?*
                 memory: ?*
+  - exclude:
+      any:
+      - resources:
+          namespaces:
+          - kube-system
+          - kube-public
+          - kube-node-lease
+    match:
+      any:
+      - resources:
+          kinds:
+          - Deployment
+          - StatefulSet
+          - DaemonSet
+          - Job
+    name: require-resources-controllers
+    preconditions:
+      all:
+      - key: '{{ request.object.spec.template.metadata.labels."ai.infra.guard/enabled"
+          || '''' }}'
+        operator: Equals
+        value: "true"
+    validate:
+      message: AI inference containers and init containers must set requests and limits
+      pattern:
+        spec:
+          template:
+            spec:
+              =(initContainers):
+              - resources:
+                  limits:
+                    memory: ?*
+                  requests:
+                    cpu: ?*
+                    memory: ?*
+              containers:
+              - resources:
+                  limits:
+                    memory: ?*
+                  requests:
+                    cpu: ?*
+                    memory: ?*
+  - exclude:
+      any:
+      - resources:
+          namespaces:
+          - kube-system
+          - kube-public
+          - kube-node-lease
+    match:
+      any:
+      - resources:
+          kinds:
+          - CronJob
+    name: require-resources-cronjobs
+    preconditions:
+      all:
+      - key: '{{ request.object.spec.jobTemplate.spec.template.metadata.labels."ai.infra.guard/enabled"
+          || '''' }}'
+        operator: Equals
+        value: "true"
+    validate:
+      message: AI inference containers and init containers must set requests and limits
+      pattern:
+        spec:
+          jobTemplate:
+            spec:
+              template:
+                spec:
+                  =(initContainers):
+                  - resources:
+                      limits:
+                        memory: ?*
+                      requests:
+                        cpu: ?*
+                        memory: ?*
+                  containers:
+                  - resources:
+                      limits:
+                        memory: ?*
+                      requests:
+                        cpu: ?*
+                        memory: ?*
   validationFailureAction: Audit

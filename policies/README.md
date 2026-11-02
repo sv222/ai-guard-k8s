@@ -1,6 +1,6 @@
 # Policy pack
 
-Kyverno and Cilium policies for AI inference workloads. They select pods labeled `ai.infra.guard/enabled: "true"`. The Kyverno policies use `Audit` mode and skip `kube-system`, `kube-public` and `kube-node-lease`.
+Kyverno and Cilium policies for AI inference workloads. They select pods labeled `ai.infra.guard/enabled: "true"`. The Kyverno policies also check Deployments, StatefulSets, DaemonSets, Jobs and CronJobs whose pod template has that label, so a bad controller is reported (or rejected in `Enforce` mode) before it creates pods. The Kyverno policies use `Audit` mode and skip `kube-system`, `kube-public` and `kube-node-lease`.
 
 | File | Kind | Purpose |
 |---|---|---|
