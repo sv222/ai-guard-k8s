@@ -15,6 +15,7 @@ func newScanCmd(kubeconfig *string) *cobra.Command {
 	var (
 		path      string
 		asJSON    bool
+		asSARIF   bool
 		selector  string
 		namespace string
 		cluster   bool
@@ -59,9 +60,12 @@ func newScanCmd(kubeconfig *string) *cobra.Command {
 			for _, w := range res.Warnings {
 				fmt.Fprintln(c.ErrOrStderr(), "warning:", w)
 			}
-			if asJSON {
+			switch {
+			case asSARIF:
+				err = report.PrintSARIF(c.OutOrStdout(), res.Findings, Version)
+			case asJSON:
 				err = report.PrintJSON(c.OutOrStdout(), res.Findings)
-			} else {
+			default:
 				err = report.PrintTable(c.OutOrStdout(), res.Findings)
 			}
 			if err != nil {
@@ -79,6 +83,8 @@ func newScanCmd(kubeconfig *string) *cobra.Command {
 	c.Flags().StringVar(&path, "path", "", "manifest directory or file to scan (skips the cluster unless --cluster is set)")
 	c.Flags().BoolVar(&cluster, "cluster", false, "also scan the live cluster when --path is set")
 	c.Flags().BoolVar(&asJSON, "json", false, "JSON output")
+	c.Flags().BoolVar(&asSARIF, "sarif", false, "SARIF 2.1.0 output for GitHub code scanning")
+	c.MarkFlagsMutuallyExclusive("json", "sarif")
 	c.Flags().StringVar(&selector, "workload-selector", "", "extra label selector marking AI workloads, for example tier=inference")
 	c.Flags().StringVarP(&namespace, "namespace", "n", "", "cluster namespace (empty = all); not used with --path")
 	c.Flags().StringVar(&failOn, "fail-on", "low", "lowest severity that makes the exit code 1: low, medium or high")
