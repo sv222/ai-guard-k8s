@@ -9,7 +9,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-var Registry = []CheckFunc{aig001, aig002, aig003, aig004, aig005, aig006, aig007, aig008}
+var Registry = []CheckFunc{aig001, aig002, aig003, aig004, aig005, aig006, aig007, aig008, aig011, aig012}
 
 var engineAuthEnv = map[string][]string{
 	"vllm":                      {"VLLM_API_KEY"},
@@ -27,6 +27,12 @@ var authSecretHints = []string{"api-key", "apikey", "api_key", "api-token", "api
 var nonAuthSecretWords = map[string]bool{
 	"hf": true, "huggingface": true, "hugging": true, "aws": true, "s3": true, "gcs": true, "gcp": true, "azure": true,
 	"registry": true, "pull": true, "docker": true, "tls": true, "ssh": true,
+}
+
+var dangerousCaps = map[string]bool{
+	"ALL": true, "SYS_ADMIN": true, "NET_ADMIN": true, "NET_RAW": true, "SYS_PTRACE": true, "SYS_MODULE": true,
+	"SYS_RAWIO": true, "SYS_BOOT": true, "SYS_TIME": true, "DAC_READ_SEARCH": true,
+	"BPF": true, "PERFMON": true, "SYS_RESOURCE": true, "SYSLOG": true,
 }
 
 var unsafeModelExts = []string{".bin", ".pt", ".pth", ".pkl", ".pickle", ".ckpt"}
@@ -229,6 +235,49 @@ func aig008(w target.WorkloadTarget) []Finding {
 		}
 	}
 	return out
+}
+
+func aig011(w target.WorkloadTarget) []Finding {
+	var out []Finding
+	for _, c := range inferenceContainers(w) {
+		for _, p := range c.Ports {
+			if p.HostPort == 0 {
+				continue
+			}
+			out = append(out, Finding{ID: "AIG-011", Title: "hostPort on inference container", Severity: "High",
+				Evidence: fmt.Sprintf("container %s: port %d is bound to host port %d on every node it runs on", c.Name, p.ContainerPort, p.HostPort),
+				Hint:     "remove hostPort and expose the engine through a ClusterIP Service"}.on(w))
+		}
+	}
+	return out
+}
+
+func aig012(w target.WorkloadTarget) []Finding {
+	var out []Finding
+	for _, c := range w.AllContainers() {
+		if c.SecurityContext == nil || c.SecurityContext.Capabilities == nil {
+			continue
+		}
+		var caps []string
+		for _, cp := range c.SecurityContext.Capabilities.Add {
+			if n := strings.TrimPrefix(strings.ToUpper(string(cp)), "CAP_"); dangerousCaps[n] {
+				caps = append(caps, n)
+			}
+		}
+		if len(caps) > 0 {
+			out = append(out, Finding{ID: "AIG-012", Title: "dangerous Linux capabilities added", Severity: "High",
+				Evidence: fmt.Sprintf("container %s: capabilities.add: %s", c.Name, strings.Join(caps, ", ")),
+				Hint:     "drop ALL capabilities and add back only NET_BIND_SERVICE if needed (PSS Restricted)"}.on(w))
+		}
+	}
+	return out
+}
+
+func inferenceContainers(w target.WorkloadTarget) []corev1.Container {
+	if cs := detect.EngineContainers(w); len(cs) > 0 {
+		return cs
+	}
+	return w.Containers()
 }
 
 type modelValue struct {

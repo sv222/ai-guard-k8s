@@ -32,6 +32,8 @@ var ruleNames = map[string]string{
 	"AIG-008": "Unsafe model execution",
 	"AIG-009": "No ingress isolation",
 	"AIG-010": "Exposed by LoadBalancer, NodePort or Ingress",
+	"AIG-011": "hostPort on an inference container",
+	"AIG-012": "Dangerous Linux capabilities",
 }
 
 type sarifLog struct {

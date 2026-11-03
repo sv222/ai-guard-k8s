@@ -307,6 +307,32 @@ func TestPodSpecChecks(t *testing.T) {
 			c.Image = "nginx"
 			c.Args = []string{"--trust-remote-code", "/m/a.bin"}
 		}), "AIG-008", 0},
+		{"011 hostPort", container(func(c *corev1.Container) {
+			c.Ports = []corev1.ContainerPort{{ContainerPort: 8000, HostPort: 8000}, {ContainerPort: 9000, HostPort: 9000}}
+		}), "AIG-011", 2},
+		{"011 containerPort only", container(func(c *corev1.Container) { c.Ports = []corev1.ContainerPort{{ContainerPort: 8000}} }), "AIG-011", 0},
+		{"011 hostPort on sidecar ignored", func(w *target.WorkloadTarget) {
+			w.PodSpec.Containers = append(w.PodSpec.Containers, corev1.Container{Name: "exporter", Image: "prom/node-exporter",
+				Ports: []corev1.ContainerPort{{ContainerPort: 9100, HostPort: 9100}}})
+		}, "AIG-011", 0},
+		{"011 hostPort on opted-in unknown image", func(w *target.WorkloadTarget) {
+			c := &w.PodSpec.Containers[0]
+			c.Image, c.Args = "registry.local/llm:1", nil
+			c.Ports = []corev1.ContainerPort{{ContainerPort: 8080, HostPort: 80}}
+		}, "AIG-011", 1},
+		{"012 SYS_ADMIN and NET_ADMIN", container(func(c *corev1.Container) {
+			c.SecurityContext.Capabilities = &corev1.Capabilities{Add: []corev1.Capability{"SYS_ADMIN", "cap_net_admin", "NET_BIND_SERVICE"}}
+		}), "AIG-012", 1},
+		{"012 ALL", container(func(c *corev1.Container) {
+			c.SecurityContext.Capabilities = &corev1.Capabilities{Add: []corev1.Capability{"ALL"}}
+		}), "AIG-012", 1},
+		{"012 NET_BIND_SERVICE and IPC_LOCK are fine", container(func(c *corev1.Container) {
+			c.SecurityContext.Capabilities = &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}, Add: []corev1.Capability{"NET_BIND_SERVICE", "IPC_LOCK"}}
+		}), "AIG-012", 0},
+		{"012 init container", pod(func(p *corev1.PodSpec) {
+			p.InitContainers = []corev1.Container{{Name: "init", Image: "busybox",
+				SecurityContext: &corev1.SecurityContext{Capabilities: &corev1.Capabilities{Add: []corev1.Capability{"SYS_PTRACE"}}}}}
+		}), "AIG-012", 1},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
