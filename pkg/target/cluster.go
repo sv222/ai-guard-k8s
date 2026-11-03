@@ -63,21 +63,21 @@ func FromClientset(ctx context.Context, cs kubernetes.Interface, namespace strin
 		return out, err
 	}
 	for _, o := range deps.Items {
-		out.Targets = append(out.Targets, fromTemplate("Deployment", o.ObjectMeta, o.Spec.Template, "cluster"))
+		out.Targets = append(out.Targets, fromTemplate("Deployment", o.ObjectMeta, o.Spec.Template, "cluster", 0))
 	}
 	sts, err := cs.AppsV1().StatefulSets(namespace).List(ctx, opt)
 	if err != nil {
 		return out, err
 	}
 	for _, o := range sts.Items {
-		out.Targets = append(out.Targets, fromTemplate("StatefulSet", o.ObjectMeta, o.Spec.Template, "cluster"))
+		out.Targets = append(out.Targets, fromTemplate("StatefulSet", o.ObjectMeta, o.Spec.Template, "cluster", 0))
 	}
 	dss, err := cs.AppsV1().DaemonSets(namespace).List(ctx, opt)
 	if err != nil {
 		return out, err
 	}
 	for _, o := range dss.Items {
-		out.Targets = append(out.Targets, fromTemplate("DaemonSet", o.ObjectMeta, o.Spec.Template, "cluster"))
+		out.Targets = append(out.Targets, fromTemplate("DaemonSet", o.ObjectMeta, o.Spec.Template, "cluster", 0))
 	}
 	rss, err := cs.AppsV1().ReplicaSets(namespace).List(ctx, opt)
 	if err != nil {
@@ -87,7 +87,7 @@ func FromClientset(ctx context.Context, cs kubernetes.Interface, namespace strin
 		if isControlledBy(o.ObjectMeta, "Deployment") || (o.Spec.Replicas != nil && *o.Spec.Replicas == 0) {
 			continue
 		}
-		out.Targets = append(out.Targets, fromTemplate("ReplicaSet", o.ObjectMeta, o.Spec.Template, "cluster"))
+		out.Targets = append(out.Targets, fromTemplate("ReplicaSet", o.ObjectMeta, o.Spec.Template, "cluster", 0))
 	}
 	rcs, err := cs.CoreV1().ReplicationControllers(namespace).List(ctx, opt)
 	if err != nil {
@@ -97,7 +97,7 @@ func FromClientset(ctx context.Context, cs kubernetes.Interface, namespace strin
 		if o.Spec.Template == nil || (o.Spec.Replicas != nil && *o.Spec.Replicas == 0) {
 			continue
 		}
-		out.Targets = append(out.Targets, fromTemplate("ReplicationController", o.ObjectMeta, *o.Spec.Template, "cluster"))
+		out.Targets = append(out.Targets, fromTemplate("ReplicationController", o.ObjectMeta, *o.Spec.Template, "cluster", 0))
 	}
 	jobs, err := cs.BatchV1().Jobs(namespace).List(ctx, opt)
 	if err != nil {
@@ -107,14 +107,14 @@ func FromClientset(ctx context.Context, cs kubernetes.Interface, namespace strin
 		if isControlledBy(o.ObjectMeta, "CronJob") {
 			continue
 		}
-		out.Targets = append(out.Targets, fromTemplate("Job", o.ObjectMeta, o.Spec.Template, "cluster"))
+		out.Targets = append(out.Targets, fromTemplate("Job", o.ObjectMeta, o.Spec.Template, "cluster", 0))
 	}
 	crons, err := cs.BatchV1().CronJobs(namespace).List(ctx, opt)
 	if err != nil {
 		return out, err
 	}
 	for _, o := range crons.Items {
-		out.Targets = append(out.Targets, fromTemplate("CronJob", o.ObjectMeta, o.Spec.JobTemplate.Spec.Template, "cluster"))
+		out.Targets = append(out.Targets, fromTemplate("CronJob", o.ObjectMeta, o.Spec.JobTemplate.Spec.Template, "cluster", 0))
 	}
 	pods, err := cs.CoreV1().Pods(namespace).List(ctx, opt)
 	if err != nil {

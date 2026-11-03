@@ -66,7 +66,7 @@ func parseSARIF(t *testing.T, fs []checks.Finding) sarifDoc {
 }
 
 var sample = []checks.Finding{
-	{ID: "AIG-003", Title: "hostNetwork enabled", Severity: "High", Kind: "Deployment", Namespace: "llm", Name: "vllm", Evidence: "hostNetwork: true", Hint: "set hostNetwork: false", Source: "manifests/vllm.yaml"},
+	{ID: "AIG-003", Title: "hostNetwork enabled", Severity: "High", Kind: "Deployment", Namespace: "llm", Name: "vllm", Evidence: "hostNetwork: true", Hint: "set hostNetwork: false", Source: "manifests/vllm.yaml", Line: 12},
 	{ID: "AIG-001", Title: "no auth", Severity: "Medium", Kind: "Deployment", Namespace: "llm", Name: "ollama", Evidence: "no key", Source: "cluster"},
 	{ID: "AIG-007", Title: "missing resource requests/limits", Severity: "Low", Kind: "Pod", Namespace: "llm", Name: "p", Evidence: "c", Source: "./a/../b.yaml"},
 	{ID: "AIG-003", Title: "hostPID enabled", Severity: "High", Kind: "Deployment", Namespace: "llm", Name: "vllm", Evidence: "hostPID: true", Source: "manifests/vllm.yaml"},
@@ -109,7 +109,7 @@ func TestSARIFRulesAndLevels(t *testing.T) {
 func TestSARIFLocations(t *testing.T) {
 	res := parseSARIF(t, sample).Runs[0].Results
 	file := res[0].Locations[0]
-	if file.PhysicalLocation == nil || file.PhysicalLocation.ArtifactLocation.URI != "manifests/vllm.yaml" || file.PhysicalLocation.Region.StartLine != 1 {
+	if file.PhysicalLocation == nil || file.PhysicalLocation.ArtifactLocation.URI != "manifests/vllm.yaml" || file.PhysicalLocation.Region.StartLine != 12 {
 		t.Errorf("file location = %+v", file.PhysicalLocation)
 	}
 	if file.LogicalLocations[0].FullyQualifiedName != "Deployment/llm/vllm" {
@@ -118,8 +118,8 @@ func TestSARIFLocations(t *testing.T) {
 	if res[1].Locations[0].PhysicalLocation != nil {
 		t.Error("cluster finding must have no file location")
 	}
-	if got := res[2].Locations[0].PhysicalLocation.ArtifactLocation.URI; got != "b.yaml" {
-		t.Errorf("uri = %q, want b.yaml", got)
+	if got := res[2].Locations[0].PhysicalLocation; got.ArtifactLocation.URI != "b.yaml" || got.Region.StartLine != 1 {
+		t.Errorf("location = %+v, want b.yaml line 1", got)
 	}
 }
 

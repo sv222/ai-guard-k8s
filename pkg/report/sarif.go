@@ -173,7 +173,7 @@ func PrintSARIF(w io.Writer, findings []checks.Finding, version string) error {
 			Name: f.Name, FullyQualifiedName: obj, Kind: "resource",
 		}}}
 		if uri := sarifURI(f.Source); uri != "" {
-			loc.PhysicalLocation = &sarifPhysical{ArtifactLocation: sarifArtifact{uri}, Region: sarifRegion{1}}
+			loc.PhysicalLocation = &sarifPhysical{ArtifactLocation: sarifArtifact{uri}, Region: sarifRegion{max(f.Line, 1)}}
 		}
 		results = append(results, sarifResult{
 			RuleID: f.ID, RuleIndex: index[f.ID], Level: sarifLevel(f.Severity),
