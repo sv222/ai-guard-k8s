@@ -608,3 +608,27 @@ spec:
 		t.Errorf("rollout labels = %+v", ds.Targets[2])
 	}
 }
+
+func TestFromBytesRecordsObjectLines(t *testing.T) {
+	data := "# header\n---\n\n# comment\napiVersion: v1\nkind: Pod\nmetadata:\n  name: a\n--- # next\n---\r\napiVersion: v1\r\nkind: Pod\r\nmetadata:\r\n  name: b\r\n---\n{\"apiVersion\": \"v1\", \"kind\": \"List\", \"items\": [\n{\"apiVersion\": \"v1\", \"kind\": \"Pod\", \"metadata\": {\"name\": \"c\"}}]}"
+	ds := FromBytes([]byte(data), "x.yaml")
+	if len(ds.Warnings) != 0 {
+		t.Fatalf("warnings: %v", ds.Warnings)
+	}
+	want := map[string]int{"a": 5, "b": 11, "c": 16}
+	if len(ds.Targets) != len(want) {
+		t.Fatalf("targets = %d, want %d", len(ds.Targets), len(want))
+	}
+	for _, w := range ds.Targets {
+		if w.Line != want[w.Name] {
+			t.Errorf("%s: line %d, want %d", w.Name, w.Line, want[w.Name])
+		}
+	}
+}
+
+func TestFromBytesBadSeparatorKeepsEarlierDocs(t *testing.T) {
+	ds := FromBytes([]byte("apiVersion: v1\nkind: Pod\nmetadata:\n  name: a\n---\napiVersion: v1\nkind: Pod\nmetadata:\n  name: b\n--- x\n"), "x.yaml")
+	if len(ds.Targets) != 1 || ds.Targets[0].Name != "a" || ds.Failed != 1 || len(ds.Warnings) != 1 {
+		t.Fatalf("targets=%+v failed=%d warnings=%v", ds.Targets, ds.Failed, ds.Warnings)
+	}
+}

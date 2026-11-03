@@ -69,7 +69,7 @@
                   "uri": "manifests/vllm.yaml"
                 },
                 "region": {
-                  "startLine": 1
+                  "startLine": 12
                 }
               },
               "logicalLocations": [

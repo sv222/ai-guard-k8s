@@ -167,7 +167,7 @@
                   "uri": "../testdata/manifests/offending/bad.yaml"
                 },
                 "region": {
-                  "startLine": 1
+                  "startLine": 49
                 }
               },
               "logicalLocations": [
@@ -197,7 +197,7 @@
                   "uri": "../testdata/manifests/offending/bad.yaml"
                 },
                 "region": {
-                  "startLine": 1
+                  "startLine": 49
                 }
               },
               "logicalLocations": [
@@ -227,7 +227,7 @@
                   "uri": "../testdata/manifests/offending/bad.yaml"
                 },
                 "region": {
-                  "startLine": 1
+                  "startLine": 49
                 }
               },
               "logicalLocations": [
@@ -257,7 +257,7 @@
                   "uri": "../testdata/manifests/offending/bad.yaml"
                 },
                 "region": {
-                  "startLine": 1
+                  "startLine": 49
                 }
               },
               "logicalLocations": [
@@ -287,7 +287,7 @@
                   "uri": "../testdata/manifests/offending/bad.yaml"
                 },
                 "region": {
-                  "startLine": 1
+                  "startLine": 49
                 }
               },
               "logicalLocations": [
@@ -317,7 +317,7 @@
                   "uri": "../testdata/manifests/offending/bad.yaml"
                 },
                 "region": {
-                  "startLine": 1
+                  "startLine": 49
                 }
               },
               "logicalLocations": [
@@ -347,7 +347,7 @@
                   "uri": "../testdata/manifests/offending/bad.yaml"
                 },
                 "region": {
-                  "startLine": 1
+                  "startLine": 49
                 }
               },
               "logicalLocations": [
