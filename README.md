@@ -73,8 +73,16 @@ With Go, or from source:
     ai-guard scan --path manifests/ --cluster  # files and cluster together
     ai-guard scan --path manifests/ --json     # JSON output
     ai-guard scan --path manifests/ --sarif    # SARIF 2.1.0 output for GitHub code scanning
+    ai-guard scan --helm charts/vllm --values prod.yaml --set image.tag=v0.6.0 -n llm
+    ai-guard scan --kustomize deploy/overlays/prod
 
-`--path` reads `.yaml`, `.yml` and `.json` files, including multi-document files and `kind: List`. Render Helm charts first with `helm template`. Symlinks and special files (named pipes, devices) are skipped with a warning, and files larger than 10 MB are skipped and count as decode failures.
+`--path` reads `.yaml`, `.yml` and `.json` files, including multi-document files and `kind: List`. Symlinks and special files (named pipes, devices) are skipped with a warning, and files larger than 10 MB are skipped and count as decode failures.
+
+`--helm` renders a local chart directory or `.tgz` archive in process with the Helm v4 library, like `helm template`: no `helm` binary and no cluster access. `--values` (repeatable) and `--set` (repeatable, Helm `--set` syntax) override the chart values, and `-n` sets the release namespace (default `default`). The release name is `release-name`. Hook templates, including test hooks, are rendered too. Dependencies must already be in `charts/` (run `helm dependency build`). Remote charts (repository or OCI) are not fetched. Findings point at the template file, for example `charts/vllm/templates/deployment.yaml`.
+
+`--kustomize` builds a kustomization directory in process with the kustomize library, like `kustomize build`: no `kustomize` or `kubectl` binary. Findings point at the file a resource came from, for example `base/deployment.yaml` when an overlay patches it. Helm charts inside a kustomization (`helmCharts`) and exec plugins are not supported.
+
+`--path`, `--helm` and `--kustomize` can be combined. The objects from all of them are checked together, so a NetworkPolicy under `--path` counts for a workload from `--helm`.
 
 | Exit code | Meaning |
 |---|---|
@@ -102,8 +110,11 @@ A workload counts as AI inference if its name or an image contains `vllm`, `olla
 | AIG-008 | Unsafe model execution | High (Medium for `s3://`, `gs://`) | `--trust-remote-code`; model args or env ending in `.bin`, `.pt`, `.pth`, `.pkl`, `.pickle`, `.ckpt`; `s3://` or `gs://` sources | Remove the flag, use SafeTensors, pin model provenance | OWASP LLM03:2025 Supply Chain; MITRE ATLAS AML.T0010 AI Supply Chain Compromise |
 | AIG-009 | No ingress isolation | Medium | No NetworkPolicy selects the pod and restricts ingress. A rule counts as open when it has no `from`, a peer with an empty `namespaceSelector`, an empty peer, or `0.0.0.0/0` or `::/0` without `except`. `ports` alone do not restrict who can connect. Egress is judged separately and not by this check (the Cilium policy from `ai-guard enforce` covers it) | Default-deny ingress plus an allowlist of peers (see `ai-guard enforce`) | - |
 | AIG-010 | Exposed by `LoadBalancer`, `NodePort` or Ingress | High | A Service of that type selects the workload, or an Ingress routes to a Service that does, and no auth evidence exists. Ingress auth annotations (`auth-url`, `auth-type`, `auth-signin`, `auth-secret`, `oauth2`) or `ai.infra.guard/gateway-auth: "true"` on the Ingress count as auth | Add auth, use the gateway annotation, or use an internal Service | - |
+| AIG-011 | `hostPort` on an inference container | High | A port of an engine container has `hostPort` set. If no engine container is recognized in the AI workload, all its containers are checked | Remove `hostPort` and use a ClusterIP Service | PSS Baseline: Host Ports |
+| AIG-012 | Dangerous Linux capabilities | High | `capabilities.add` has `ALL`, `SYS_ADMIN`, `NET_ADMIN`, `NET_RAW`, `SYS_PTRACE`, `SYS_MODULE`, `SYS_RAWIO`, `SYS_BOOT`, `SYS_TIME`, `SYS_RESOURCE`, `SYSLOG`, `DAC_READ_SEARCH`, `BPF` or `PERFMON` (with or without `CAP_`). `NET_BIND_SERVICE` and `IPC_LOCK` are not reported | Drop `ALL` and add back only what the engine needs | PSS Baseline: Capabilities. Restricted: Capabilities |
+| AIG-013 | Exposed by a Gateway API `HTTPRoute` | High | An `HTTPRoute` (`gateway.networking.k8s.io`) has a `backendRef` to a Service that selects the workload, and no auth evidence exists. Auth evidence on the route: an Envoy Gateway `SecurityPolicy` with `basicAuth`, `apiKeyAuth`, `jwt`, `oidc` or `extAuth` that targets the route or its parent Gateway, an `ExtensionRef` filter whose kind or name contains `auth`, `jwt` or `oidc`, the Ingress auth annotations above, or `ai.infra.guard/gateway-auth: "true"` | Add engine auth, attach an auth policy to the route or Gateway, or annotate the route | - |
 
-Helm test hook pods (`helm.sh/hook: test`) are skipped, and `scan` prints a warning for each skipped AI workload. This annotation works like an ignore switch: whoever can set it on a workload hides that workload from the scan, so review it in CI. If you opt in a pod with one container and no engine is recognized, that container gets the engine checks (AIG-001, AIG-002, AIG-008). AIG-005, AIG-006 and AIG-007 also cover init containers. Container settings override pod settings. There is no inline ignore comment. To silence a check, fix the cause.
+Helm test hook pods (`helm.sh/hook: test`) are skipped, and `scan` prints a warning for each skipped AI workload. This annotation works like an ignore switch: whoever can set it on a workload hides that workload from the scan, so review it in CI. If you opt in a pod with one container and no engine is recognized, that container gets the engine checks (AIG-001, AIG-002, AIG-008). AIG-005, AIG-006, AIG-007 and AIG-012 also cover init containers. Container settings override pod settings. There is no inline ignore comment. To silence a check, fix the cause.
 
 PSS means [Pod Security Standards](https://kubernetes.io/docs/concepts/security/pod-security-standards/). The mapping shows which control covers the same setting. It does not mean ai-guard is a PSS validator. The OWASP and ATLAS IDs are references for AIG-008 only.
 
@@ -143,8 +154,8 @@ Safety note:
 
 ```mermaid
 flowchart LR
-    A[Manifests or live cluster] --> B[Detect AI workloads]
-    B --> C[Run checks AIG-001 to AIG-010]
+    A[Manifests, Helm chart, kustomization or live cluster] --> B[Detect AI workloads]
+    B --> C[Run checks AIG-001 to AIG-013]
     C --> D[Table, JSON or SARIF report]
     D --> E[Exit code 0, 1 or 2]
     C -.->|pod label| F[ai-guard enforce]
@@ -218,13 +229,13 @@ How findings map to SARIF:
 
 | Finding | SARIF |
 |---|---|
-| ID (`AIG-001` to `AIG-010`) | `ruleId`, with one rule per ID in `tool.driver.rules` |
+| ID (`AIG-001` to `AIG-013`) | `ruleId`, with one rule per ID in `tool.driver.rules` |
 | Severity High, Medium, Low | `level` `error`, `warning`, `note` |
 | Title, workload, evidence and fix | `message.text` |
-| File the workload came from | `physicalLocation` with the path as given to `--path`, line 1 |
+| File the workload came from | `physicalLocation` with the path as given to `--path`, and `startLine` at the first line of the object (for a `kind: List`, the line where the list starts). For `--helm` and `--kustomize` the path is the template or resource file, and the line is 1 |
 | Kind, namespace and name | `logicalLocations`, for example `Deployment/llm/vllm` |
 
-Run the scan from the repository root with a relative `--path`, so the paths match the files in the repository. Findings from a live cluster have no file, only the logical location. GitHub code scanning needs a file location, so upload results from `--path` scans. Each result has a `partialFingerprints` value made from the rule, the workload and the evidence, so an alert stays the same alert between runs.
+Run the scan from the repository root with a relative `--path`, `--helm` or `--kustomize`, so the paths match the files in the repository. Findings from a live cluster have no file, only the logical location. GitHub code scanning needs a file location, so upload results from file scans. Each result has a `partialFingerprints` value made from the rule, the workload and the evidence, so an alert stays the same alert between runs.
 
 ## How it was tested
 
@@ -303,24 +314,24 @@ Nearly all false positives (53 findings) came from Helm test pods that were matc
 
 Known gaps from this run:
 
-- Custom resources are not read. Argo Rollouts are the exception: `kind: Rollout` (`argoproj.io`) is read in manifests, and in a cluster the ReplicaSets a Rollout creates are scanned (reported as `ReplicaSet`, not `Rollout`). `RayCluster`, `RayService`, KServe `InferenceService` and `ClusterServingRuntime`, and KubeAI `Model` render no Deployment, so nothing is scanned. Only generated Deployments are seen.
+- Custom resources are not read, except Gateway API `HTTPRoute` and Envoy Gateway `SecurityPolicy` (for AIG-013) and Argo Rollouts: `kind: Rollout` (`argoproj.io`) is read in manifests, and in a cluster the ReplicaSets a Rollout creates are scanned (reported as `ReplicaSet`, not `Rollout`). `RayCluster`, `RayService`, KServe `InferenceService` and `ClusterServingRuntime`, and KubeAI `Model` render no Deployment, so nothing is scanned. Only generated Deployments are seen.
 - Routers and gateways in front of engines (the production-stack router, the KubeAI proxy) are not recognized as AI workloads, so their exposure is not reported.
 - Values are chart defaults plus the small variants in the corpus. Real deployments set other values.
 
 ### Known limitations
 
 - Checks are static heuristics on Kubernetes objects. They do not see runtime behavior.
-- Helm templates and Kustomize overlays are not rendered. Render them first.
+- Rendered Helm and kustomize objects point at the template or resource file, but not at a line in it, because the rendered text has no lines in the source.
+- Only Envoy Gateway `SecurityPolicy` is read as a Gateway API auth policy. Istio `AuthorizationPolicy` and other implementations need `ai.infra.guard/gateway-auth: "true"` on the route or the workload.
 - Auth detection is evidence-based. It looks for `--api-key` and known env names. It cannot prove auth works. vLLM `--api-key` does not cover every endpoint, so a pass on AIG-001 is not proof of safety.
 - Engines are found by image or workload name. A custom image may need the label or `--workload-selector`.
 - Pods owned by a Deployment, ReplicaSet, ReplicationController, StatefulSet, DaemonSet, Job or CronJob are not scanned alone. Their owner is. ReplicaSets owned by a Deployment, and ReplicaSets or ReplicationControllers scaled to 0, are skipped in cluster scans. A Pod owned by another custom controller is scanned as a Pod.
 
 ## Roadmap
 
-- Read Helm charts and Kustomize overlays directly.
-- Check more engine settings, for example `hostPort`, capabilities and Gateway API routes.
+- Gateway API Inference Extension: `InferencePool` backends of an `HTTPRoute`, and more gateway auth policies (Istio, Kong).
+- Pull remote Helm charts (repository and OCI) and map rendered findings to template lines.
 - Test Cilium FQDN egress with real inference containers.
-- Line numbers in SARIF results, so alerts point at the object in a multi-document file.
 - Test the Kyverno pod controller rules on a cluster, and cover ReplicaSets and Argo Rollouts.
 
 Ideas and bug reports are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md). Report security issues as described in [SECURITY.md](SECURITY.md).
