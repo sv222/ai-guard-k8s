@@ -5,7 +5,7 @@ Scan manifests or a live cluster for unsafe settings in vLLM, Ollama, Triton, TG
 [![ci](https://github.com/sv222/ai-guard-k8s/actions/workflows/ci.yml/badge.svg)](https://github.com/sv222/ai-guard-k8s/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-`ai-guard` is a small Go CLI. It reads Kubernetes objects only. It does not scan prompts or model weights. It gives table or JSON output and exit codes for CI.
+`ai-guard` is a small Go CLI. It reads Kubernetes objects only. It does not scan prompts or model weights. It gives table, JSON or SARIF output and exit codes for CI.
 
 Platforms: Linux, macOS and Windows, on amd64 and arm64.
 
@@ -72,6 +72,7 @@ With Go, or from source:
     ai-guard scan -n llm                       # one namespace (cluster scan only; --path ignores -n)
     ai-guard scan --path manifests/ --cluster  # files and cluster together
     ai-guard scan --path manifests/ --json     # JSON output
+    ai-guard scan --path manifests/ --sarif    # SARIF 2.1.0 output for GitHub code scanning
 
 `--path` reads `.yaml`, `.yml` and `.json` files, including multi-document files and `kind: List`. Render Helm charts first with `helm template`. Symlinks and special files (named pipes, devices) are skipped with a warning, and files larger than 10 MB are skipped and count as decode failures.
 
@@ -117,7 +118,7 @@ This writes four files. The default output is also in [`policies/`](policies/).
 
 `enforce --out` overwrites files with the same names but refuses to write through a symlink or over a special file.
 
-Policies select pods with the label `ai.infra.guard/enabled: "true"`. Change this with `--selector team=llm,tier=gpu`. They skip `kube-system`, `kube-public` and `kube-node-lease`.
+Policies select pods with the label `ai.infra.guard/enabled: "true"`. The Kyverno policies also check Deployments, StatefulSets, DaemonSets, Jobs and CronJobs whose pod template has this label, so a bad controller is reported, or rejected with `--mode enforce`, before it creates pods. Change this with `--selector team=llm,tier=gpu`. They skip `kube-system`, `kube-public` and `kube-node-lease`.
 
     ai-guard enforce --mode enforce                      # Kyverno blocks bad pods
     ai-guard enforce --allow-fqdn models.example.com     # add an egress host (repeatable)
@@ -144,7 +145,7 @@ Safety note:
 flowchart LR
     A[Manifests or live cluster] --> B[Detect AI workloads]
     B --> C[Run checks AIG-001 to AIG-010]
-    C --> D[Table or JSON report]
+    C --> D[Table, JSON or SARIF report]
     D --> E[Exit code 0, 1 or 2]
     C -.->|pod label| F[ai-guard enforce]
     F --> G[Kyverno and Cilium policies]
@@ -154,7 +155,7 @@ Design decisions:
 
 1. **Static and read-only by default.** `scan` only lists objects. It never changes the cluster. Only `enforce --apply` writes, and only when you ask.
 2. **Audit before Enforce.** Generated policies start in `Audit` so you see the impact before anything is blocked.
-3. **Scan and policies select differently.** `scan` finds AI workloads by name, image, command, the label or annotation `ai.infra.guard/enabled` on the workload or its pod template, or `--workload-selector`. The generated policies match only the labels on the pod (`ai.infra.guard/enabled: "true"` by default). A workload found by name or image but without the label on its pod template is scanned, but not hardened by the policies. `scan` prints a warning for each one (see `--enforce-selector`). Put the label in the pod template, not only on the Deployment.
+3. **Scan and policies select differently.** `scan` finds AI workloads by name, image, command, the label or annotation `ai.infra.guard/enabled` on the workload or its pod template, or `--workload-selector`. The generated policies match only the labels on the pod or on the pod template of a controller (`ai.infra.guard/enabled: "true"` by default). A workload found by name or image but without the label on its pod template is scanned, but not hardened by the policies. `scan` prints a warning for each one (see `--enforce-selector`). Put the label in the pod template, not only on the Deployment.
 
 ## Use in CI
 
@@ -165,17 +166,65 @@ jobs:
   scan:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
         with:
-          go-version: "1.27.2"
-      - run: go install github.com/sv222/ai-guard-k8s@v0.2.0
+          go-version: "1.27.3"
+      - run: go install github.com/sv222/ai-guard-k8s@v0.4.0
       - run: ai-guard scan --path manifests/ --fail-on high
 ```
 
 The actions are pinned by commit SHA and ai-guard by tag. Update them when you upgrade.
+
+## Use with GitHub code scanning
+
+`--sarif` prints the findings as SARIF 2.1.0. Upload the file with `github/codeql-action/upload-sarif` and the findings show up as code scanning alerts in the Security tab and on pull requests.
+
+```yaml
+name: ai-guard-code-scanning
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version: "1.27.3"
+      - run: go install github.com/sv222/ai-guard-k8s@v0.4.0
+      - run: ai-guard scan --path manifests/ --sarif > ai-guard.sarif
+        continue-on-error: true
+      - uses: github/codeql-action/upload-sarif@1fc58d04a4d4374f921bdac573c3811c240f9c26
+        with:
+          sarif_file: ai-guard.sarif
+          category: ai-guard
+```
+
+`continue-on-error` lets the upload run when the scan finds something (exit code 1). The alerts then block the pull request through code scanning rules instead of the exit code. It also hides errors (exit code 2), such as a file that cannot be decoded, so check the scan step's log when the results look wrong. Code scanning is free for public repositories. Private repositories need a GitHub Code Security (Advanced Security) license.
+
+How findings map to SARIF:
+
+| Finding | SARIF |
+|---|---|
+| ID (`AIG-001` to `AIG-010`) | `ruleId`, with one rule per ID in `tool.driver.rules` |
+| Severity High, Medium, Low | `level` `error`, `warning`, `note` |
+| Title, workload, evidence and fix | `message.text` |
+| File the workload came from | `physicalLocation` with the path as given to `--path`, line 1 |
+| Kind, namespace and name | `logicalLocations`, for example `Deployment/llm/vllm` |
+
+Run the scan from the repository root with a relative `--path`, so the paths match the files in the repository. Findings from a live cluster have no file, only the logical location. GitHub code scanning needs a file location, so upload results from `--path` scans. Each result has a `partialFingerprints` value made from the rule, the workload and the evidence, so an alert stays the same alert between runs.
 
 ## How it was tested
 
@@ -230,7 +279,7 @@ Bad variants were created as Deployments and as bare Pods in the same namespace 
     aig-block-host-access:
       block-host-access: 'validation error: AI inference pods must not use hostNetwork, hostPID or hostPath volumes. rule block-host-access failed at path /spec/hostNetwork/'
 
-**Deployments are not rejected, their pods are.** Kyverno does not generate rules for pod controllers when a rule matches by `selector`, and the generated policies match by label. Applying a bad Deployment succeeds. The ReplicaSet then fails to create pods, and the same Kyverno message appears in its events (`kubectl describe rs`). The Deployment shows `0/1` ready. CI that only checks the result of `kubectl apply` will not see the block. Run `ai-guard scan` in CI as well.
+**In this test (before v0.4.0) Deployments were not rejected, their pods were.** Kyverno does not generate rules for pod controllers when a rule matches by `selector`, and the policies match by label. Applying a bad Deployment succeeded. The ReplicaSet then failed to create pods, and the same Kyverno message appeared in its events (`kubectl describe rs`). The Deployment showed `0/1` ready. Since v0.4.0 the policies have their own rules for Deployments, StatefulSets, DaemonSets, Jobs and CronJobs that check the pod template, so the bad Deployment itself is rejected in Enforce mode. These rules were checked with the Kyverno 1.19.1 CLI (`scripts/kyverno-check.sh`), not yet on a cluster. ReplicaSets, ReplicationControllers and Argo Rollouts are not covered by them; their pods still are.
 
 Not tested:
 
@@ -238,7 +287,7 @@ Not tested:
 - The Cilium policy and egress limits. The example NetworkPolicy covers ingress only, because model download needs egress.
 - Kyverno Audit mode with the background controller and policy reports. Only the admission controller ran.
 - Other CNIs, other Kubernetes versions, Helm charts and Ingress.
-- The Kyverno policies do not check seccomp, `readOnlyRootFilesystem` or ephemeral containers. AIG-006 covers seccomp in `scan` only. They cover `hostNetwork`, `hostPID`, `hostIPC`, `hostPort` (containers and init containers), `hostPath`, and requests and limits on init containers too. `scripts/kyverno-check.sh` runs them against `testdata/kyverno/pods.yaml` with the Kyverno CLI.
+- The Kyverno policies do not check seccomp, `readOnlyRootFilesystem` or ephemeral containers. AIG-006 covers seccomp in `scan` only. They cover `hostNetwork`, `hostPID`, `hostIPC`, `hostPort` (containers and init containers), `hostPath`, and requests and limits on init containers too. `scripts/kyverno-check.sh` runs them against `testdata/kyverno/pods.yaml` and `testdata/kyverno/controllers.yaml` with the Kyverno CLI.
 
 vLLM routes outside `/v1` are not behind the key. In this test `/health`, `/metrics`, `/version` and `/ping` answered 200 without a key, and `/tokenize` answered 405 (not 401) to an unauthenticated GET. This matches the vLLM security docs.
 
@@ -271,8 +320,8 @@ Known gaps from this run:
 - Read Helm charts and Kustomize overlays directly.
 - Check more engine settings, for example `hostPort`, capabilities and Gateway API routes.
 - Test Cilium FQDN egress with real inference containers.
-- Generate Kyverno rules that reject Deployments and other pod controllers, not only their pods.
-- SARIF output for GitHub code scanning.
+- Line numbers in SARIF results, so alerts point at the object in a multi-document file.
+- Test the Kyverno pod controller rules on a cluster, and cover ReplicaSets and Argo Rollouts.
 
 Ideas and bug reports are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md). Report security issues as described in [SECURITY.md](SECURITY.md).
 
