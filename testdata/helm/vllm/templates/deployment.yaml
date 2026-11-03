@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-vllm
+  namespace: {{ .Release.Namespace }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "vllm.labels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "vllm.labels" . | nindent 8 }}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: server
+          image: vllm/vllm-openai:{{ .Chart.AppVersion }}
+          args:
+            - --model
+            - m
+            {{- with .Values.apiKey }}
+            - --api-key
+            - {{ . }}
+            {{- end }}
+          ports:
+            - containerPort: 8000
+              {{- with .Values.hostPort }}
+              hostPort: {{ . }}
+              {{- end }}
+          securityContext:
+            allowPrivilegeEscalation: false
+          resources:
+            requests:
+              cpu: "1"
+              memory: 1Gi
+            limits:
+              memory: 1Gi

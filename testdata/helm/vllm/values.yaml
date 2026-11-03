@@ -1,0 +1,4 @@
+apiKey: ""
+hostPort: 0
+service:
+  type: ClusterIP
