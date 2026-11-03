@@ -18,6 +18,10 @@ var loadCluster = target.FromCluster
 
 type Options struct {
 	Path            string
+	Helm            string
+	HelmValues      []string
+	HelmSet         []string
+	Kustomize       string
 	Cluster         bool
 	Kubeconfig      string
 	Namespace       string
@@ -32,8 +36,11 @@ type Result struct {
 }
 
 func Scan(ctx context.Context, o Options) (Result, error) {
-	if o.Path == "" && !o.Cluster {
-		return Result{}, fmt.Errorf("nothing to scan: set a path or enable the cluster scan")
+	if o.Path == "" && o.Helm == "" && o.Kustomize == "" && !o.Cluster {
+		return Result{}, fmt.Errorf("nothing to scan: set a path, a Helm chart or a kustomization, or enable the cluster scan")
+	}
+	if o.Helm == "" && (len(o.HelmValues) > 0 || len(o.HelmSet) > 0) {
+		return Result{}, fmt.Errorf("--values and --set need --helm")
 	}
 	if err := detect.ValidateSelector(o.Selector); err != nil {
 		return Result{}, fmt.Errorf("invalid workload selector: %w", err)
@@ -45,8 +52,10 @@ func Scan(ctx context.Context, o Options) (Result, error) {
 	}
 	var res Result
 	var all []checks.Finding
-	if o.Path != "" {
-		ds, err := target.FromDir(o.Path)
+	var local target.DirScan
+	srcs := localSources(o)
+	for _, src := range srcs {
+		ds, err := src.load()
 		if err != nil {
 			return res, err
 		}
@@ -54,11 +63,14 @@ func Scan(ctx context.Context, o Options) (Result, error) {
 		res.Failed += ds.Failed
 		if ds.Objects == 0 {
 			if ds.Failed > 0 {
-				return res, fmt.Errorf("no Kubernetes object under %s could be decoded (%d documents failed)", o.Path, ds.Failed)
+				return res, fmt.Errorf("no Kubernetes object %s could be decoded (%d documents failed)", src.where, ds.Failed)
 			}
-			return res, fmt.Errorf("no Kubernetes manifests found under %s (looked for .yaml, .yml and .json files)", o.Path)
+			return res, fmt.Errorf("no Kubernetes manifests found %s%s", src.where, src.hint)
 		}
-		findings, warnings := AnalyzeWith(ds, o.Selector, o.EnforceSelector)
+		local = merge(local, ds)
+	}
+	if len(srcs) > 0 {
+		findings, warnings := AnalyzeWith(local, o.Selector, o.EnforceSelector)
 		all = append(all, findings...)
 		res.Warnings = append(res.Warnings, warnings...)
 	}
@@ -77,6 +89,36 @@ func Scan(ctx context.Context, o Options) (Result, error) {
 	res.Findings = dedupe(all)
 	res.Warnings = uniqueStrings(res.Warnings)
 	return res, nil
+}
+
+type source struct {
+	where, hint string
+	load        func() (target.DirScan, error)
+}
+
+func localSources(o Options) []source {
+	var out []source
+	if o.Path != "" {
+		out = append(out, source{"under " + o.Path, " (looked for .yaml, .yml and .json files)", func() (target.DirScan, error) { return target.FromDir(o.Path) }})
+	}
+	if o.Helm != "" {
+		out = append(out, source{"in the rendered Helm chart " + o.Helm, "", func() (target.DirScan, error) { return target.FromHelm(o.Helm, o.Namespace, o.HelmValues, o.HelmSet) }})
+	}
+	if o.Kustomize != "" {
+		out = append(out, source{"in the kustomize build of " + o.Kustomize, "", func() (target.DirScan, error) { return target.FromKustomize(o.Kustomize) }})
+	}
+	return out
+}
+
+func merge(a, b target.DirScan) target.DirScan {
+	a.Targets = append(a.Targets, b.Targets...)
+	a.NetPols = append(a.NetPols, b.NetPols...)
+	a.Services = append(a.Services, b.Services...)
+	a.Ingresses = append(a.Ingresses, b.Ingresses...)
+	a.HTTPRoutes = append(a.HTTPRoutes, b.HTTPRoutes...)
+	a.AuthPolicies = append(a.AuthPolicies, b.AuthPolicies...)
+	a.Objects += b.Objects
+	return a
 }
 
 func Analyze(ds target.DirScan, selector string) []checks.Finding {

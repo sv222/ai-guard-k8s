@@ -14,6 +14,10 @@ import (
 func newScanCmd(kubeconfig *string) *cobra.Command {
 	var (
 		path      string
+		helm      string
+		values    []string
+		set       []string
+		kustomize string
 		asJSON    bool
 		asSARIF   bool
 		selector  string
@@ -29,8 +33,8 @@ func newScanCmd(kubeconfig *string) *cobra.Command {
 		Use:   "scan",
 		Short: "Audit AI inference workloads (manifests and/or live cluster)",
 		Long: "Audit AI inference workloads.\n\n" +
-			"With --path, only the manifests under that path are scanned. Add --cluster to scan the live cluster as well.\n" +
-			"Without --path, the live cluster from the kubeconfig is scanned.\n\n" +
+			"With --path, only the manifests under that path are scanned. --helm renders a local chart and --kustomize builds a kustomization in process, without the helm or kustomize binaries; findings point at the template or resource file. These can be combined. Add --cluster to scan the live cluster as well.\n" +
+			"Without --path, --helm or --kustomize, the live cluster from the kubeconfig is scanned.\n\n" +
 			"Files that cannot be decoded make the scan fail with exit 2 unless --lenient is set. A path with no Kubernetes object at all is also an error.\n\n" +
 			"Exit codes: 0 no findings at or above --fail-on, 1 findings, 2 error.",
 		RunE: func(c *cobra.Command, args []string) error {
@@ -44,7 +48,11 @@ func newScanCmd(kubeconfig *string) *cobra.Command {
 			}
 			res, err := scanner.Scan(c.Context(), scanner.Options{
 				Path:       path,
-				Cluster:    cluster || path == "",
+				Helm:       helm,
+				HelmValues: values,
+				HelmSet:    set,
+				Kustomize:  kustomize,
+				Cluster:    cluster || (path == "" && helm == "" && kustomize == ""),
 				Kubeconfig: *kubeconfig,
 				Namespace:  namespace,
 				Selector:   selector,
@@ -81,12 +89,16 @@ func newScanCmd(kubeconfig *string) *cobra.Command {
 		},
 	}
 	c.Flags().StringVar(&path, "path", "", "manifest directory or file to scan (skips the cluster unless --cluster is set)")
-	c.Flags().BoolVar(&cluster, "cluster", false, "also scan the live cluster when --path is set")
+	c.Flags().StringVar(&helm, "helm", "", "local Helm chart directory or archive to render and scan (skips the cluster unless --cluster is set)")
+	c.Flags().StringArrayVar(&values, "values", nil, "values file for --helm (can be repeated)")
+	c.Flags().StringArrayVar(&set, "set", nil, "value for --helm, for example image.tag=v1 (can be repeated)")
+	c.Flags().StringVar(&kustomize, "kustomize", "", "kustomization directory to build and scan (skips the cluster unless --cluster is set)")
+	c.Flags().BoolVar(&cluster, "cluster", false, "also scan the live cluster when --path, --helm or --kustomize is set")
 	c.Flags().BoolVar(&asJSON, "json", false, "JSON output")
 	c.Flags().BoolVar(&asSARIF, "sarif", false, "SARIF 2.1.0 output for GitHub code scanning")
 	c.MarkFlagsMutuallyExclusive("json", "sarif")
 	c.Flags().StringVar(&selector, "workload-selector", "", "extra label selector marking AI workloads, for example tier=inference")
-	c.Flags().StringVarP(&namespace, "namespace", "n", "", "cluster namespace (empty = all); not used with --path")
+	c.Flags().StringVarP(&namespace, "namespace", "n", "", "cluster namespace (empty = all) and release namespace for --helm; not used with --path")
 	c.Flags().StringVar(&failOn, "fail-on", "low", "lowest severity that makes the exit code 1: low, medium or high")
 	c.Flags().StringVar(&enforceSel, "enforce-selector", selpkg.DefaultEnforce, "label selector that ai-guard enforce uses; AI workloads whose pod template lacks it get a warning (empty = no warning)")
 	c.Flags().BoolVar(&lenient, "lenient", false, "with --path, do not fail when some files cannot be decoded (they are still listed as warnings)")
