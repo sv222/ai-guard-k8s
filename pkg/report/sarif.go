@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/url"
 	"path"
 	"path/filepath"
 	"sort"
@@ -119,9 +120,17 @@ func sarifURI(source string) string {
 		if !strings.HasPrefix(p, "/") {
 			p = "/" + p
 		}
-		return "file://" + p
+		return "file://" + escapeSegments(p)
 	}
-	return path.Clean(filepath.ToSlash(source))
+	return escapeSegments(path.Clean(filepath.ToSlash(source)))
+}
+
+func escapeSegments(p string) string {
+	parts := strings.Split(p, "/")
+	for i, seg := range parts {
+		parts[i] = url.PathEscape(seg)
+	}
+	return strings.Join(parts, "/")
 }
 
 func fingerprint(f checks.Finding) string {

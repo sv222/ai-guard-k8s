@@ -133,6 +133,19 @@ func TestSARIFAbsoluteURI(t *testing.T) {
 	}
 }
 
+func TestSARIFURIEscapesSegments(t *testing.T) {
+	tests := map[string]string{
+		"manifests/my app/dep.yaml": "manifests/my%20app/dep.yaml",
+		"a#b/c%d.yaml":              "a%23b/c%25d.yaml",
+		"plain/dep.yaml":            "plain/dep.yaml",
+	}
+	for in, want := range tests {
+		if got := sarifURI(in); got != want {
+			t.Errorf("sarifURI(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
 func TestSARIFGolden(t *testing.T) {
 	var buf bytes.Buffer
 	if err := PrintSARIF(&buf, sample, "1.2.3"); err != nil {
