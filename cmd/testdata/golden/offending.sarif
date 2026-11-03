@@ -1,0 +1,819 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "ai-guard",
+          "version": "dev",
+          "informationUri": "https://github.com/sv222/ai-guard-k8s",
+          "rules": [
+            {
+              "id": "AIG-001",
+              "name": "No auth on the inference engine",
+              "shortDescription": {
+                "text": "No auth on the inference engine"
+              },
+              "helpUri": "https://github.com/sv222/ai-guard-k8s#what-it-checks",
+              "properties": {
+                "tags": [
+                  "security",
+                  "kubernetes"
+                ]
+              }
+            },
+            {
+              "id": "AIG-002",
+              "name": "Debug or insecure endpoint",
+              "shortDescription": {
+                "text": "Debug or insecure endpoint"
+              },
+              "helpUri": "https://github.com/sv222/ai-guard-k8s#what-it-checks",
+              "properties": {
+                "tags": [
+                  "security",
+                  "kubernetes"
+                ]
+              }
+            },
+            {
+              "id": "AIG-003",
+              "name": "Host namespaces",
+              "shortDescription": {
+                "text": "Host namespaces"
+              },
+              "helpUri": "https://github.com/sv222/ai-guard-k8s#what-it-checks",
+              "properties": {
+                "tags": [
+                  "security",
+                  "kubernetes"
+                ]
+              }
+            },
+            {
+              "id": "AIG-004",
+              "name": "hostPath volume",
+              "shortDescription": {
+                "text": "hostPath volume"
+              },
+              "helpUri": "https://github.com/sv222/ai-guard-k8s#what-it-checks",
+              "properties": {
+                "tags": [
+                  "security",
+                  "kubernetes"
+                ]
+              }
+            },
+            {
+              "id": "AIG-005",
+              "name": "Root, privileged or privilege escalation",
+              "shortDescription": {
+                "text": "Root, privileged or privilege escalation"
+              },
+              "helpUri": "https://github.com/sv222/ai-guard-k8s#what-it-checks",
+              "properties": {
+                "tags": [
+                  "security",
+                  "kubernetes"
+                ]
+              }
+            },
+            {
+              "id": "AIG-006",
+              "name": "Seccomp missing or Unconfined",
+              "shortDescription": {
+                "text": "Seccomp missing or Unconfined"
+              },
+              "helpUri": "https://github.com/sv222/ai-guard-k8s#what-it-checks",
+              "properties": {
+                "tags": [
+                  "security",
+                  "kubernetes"
+                ]
+              }
+            },
+            {
+              "id": "AIG-007",
+              "name": "No resource requests or limits",
+              "shortDescription": {
+                "text": "No resource requests or limits"
+              },
+              "helpUri": "https://github.com/sv222/ai-guard-k8s#what-it-checks",
+              "properties": {
+                "tags": [
+                  "security",
+                  "kubernetes"
+                ]
+              }
+            },
+            {
+              "id": "AIG-008",
+              "name": "Unsafe model execution",
+              "shortDescription": {
+                "text": "Unsafe model execution"
+              },
+              "helpUri": "https://github.com/sv222/ai-guard-k8s#what-it-checks",
+              "properties": {
+                "tags": [
+                  "security",
+                  "kubernetes"
+                ]
+              }
+            },
+            {
+              "id": "AIG-009",
+              "name": "No ingress isolation",
+              "shortDescription": {
+                "text": "No ingress isolation"
+              },
+              "helpUri": "https://github.com/sv222/ai-guard-k8s#what-it-checks",
+              "properties": {
+                "tags": [
+                  "security",
+                  "kubernetes"
+                ]
+              }
+            },
+            {
+              "id": "AIG-010",
+              "name": "Exposed by LoadBalancer, NodePort or Ingress",
+              "shortDescription": {
+                "text": "Exposed by LoadBalancer, NodePort or Ingress"
+              },
+              "helpUri": "https://github.com/sv222/ai-guard-k8s#what-it-checks",
+              "properties": {
+                "tags": [
+                  "security",
+                  "kubernetes"
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "AIG-001",
+          "ruleIndex": 0,
+          "level": "warning",
+          "message": {
+            "text": "Inference engine without engine/gateway auth evidence in Deployment/bad/ollama-bad: container ollama (ollama/ollama) has no auth evidence and engine has no native auth. Fix: front with an authenticating gateway (Envoy/Ingress + OAuth2), the engine lacks native auth"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "../testdata/manifests/offending/bad.yaml"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "ollama-bad",
+                  "fullyQualifiedName": "Deployment/bad/ollama-bad",
+                  "kind": "resource"
+                }
+              ]
+            }
+          ],
+          "partialFingerprints": {
+            "aiGuardFinding/v1": "f3f7b58bab7fc313e0b6b7fcc5eb0ebe"
+          }
+        },
+        {
+          "ruleId": "AIG-002",
+          "ruleIndex": 1,
+          "level": "warning",
+          "message": {
+            "text": "OLLAMA_DEBUG enabled in Deployment/bad/ollama-bad: container ollama: env OLLAMA_DEBUG=true. Fix: unset OLLAMA_DEBUG in production"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "../testdata/manifests/offending/bad.yaml"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "ollama-bad",
+                  "fullyQualifiedName": "Deployment/bad/ollama-bad",
+                  "kind": "resource"
+                }
+              ]
+            }
+          ],
+          "partialFingerprints": {
+            "aiGuardFinding/v1": "47cef680bc4d9211062ec77e857ba045"
+          }
+        },
+        {
+          "ruleId": "AIG-005",
+          "ruleIndex": 4,
+          "level": "error",
+          "message": {
+            "text": "allowPrivilegeEscalation not disabled in Deployment/bad/ollama-bad: container ollama: allowPrivilegeEscalation unset (defaults to true). Fix: set allowPrivilegeEscalation: false (PSS Restricted)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "../testdata/manifests/offending/bad.yaml"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "ollama-bad",
+                  "fullyQualifiedName": "Deployment/bad/ollama-bad",
+                  "kind": "resource"
+                }
+              ]
+            }
+          ],
+          "partialFingerprints": {
+            "aiGuardFinding/v1": "dc0b857f7faf75fe1b1e5c8646b6f254"
+          }
+        },
+        {
+          "ruleId": "AIG-005",
+          "ruleIndex": 4,
+          "level": "error",
+          "message": {
+            "text": "runAsNonRoot not enforced in Deployment/bad/ollama-bad: container ollama: runAsNonRoot: true is not set (container or pod level). Fix: set runAsNonRoot: true (PSS Restricted)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "../testdata/manifests/offending/bad.yaml"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "ollama-bad",
+                  "fullyQualifiedName": "Deployment/bad/ollama-bad",
+                  "kind": "resource"
+                }
+              ]
+            }
+          ],
+          "partialFingerprints": {
+            "aiGuardFinding/v1": "214698cb515d7ffaeec2223c2543ffb2"
+          }
+        },
+        {
+          "ruleId": "AIG-006",
+          "ruleIndex": 5,
+          "level": "warning",
+          "message": {
+            "text": "no seccomp profile in Deployment/bad/ollama-bad: container ollama: seccompProfile unset (container and pod level). Fix: set seccompProfile.type: RuntimeDefault"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "../testdata/manifests/offending/bad.yaml"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "ollama-bad",
+                  "fullyQualifiedName": "Deployment/bad/ollama-bad",
+                  "kind": "resource"
+                }
+              ]
+            }
+          ],
+          "partialFingerprints": {
+            "aiGuardFinding/v1": "8d46a161bfa4b1f29f65042bb475aafd"
+          }
+        },
+        {
+          "ruleId": "AIG-007",
+          "ruleIndex": 6,
+          "level": "note",
+          "message": {
+            "text": "missing resource requests/limits in Deployment/bad/ollama-bad: container ollama lacks requests.memory, requests.cpu, limits.memory. Fix: set requests.memory, requests.cpu and limits.memory (GPU workloads starve nodes)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "../testdata/manifests/offending/bad.yaml"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "ollama-bad",
+                  "fullyQualifiedName": "Deployment/bad/ollama-bad",
+                  "kind": "resource"
+                }
+              ]
+            }
+          ],
+          "partialFingerprints": {
+            "aiGuardFinding/v1": "f62891194613dff8457bdf4bfdf8ac03"
+          }
+        },
+        {
+          "ruleId": "AIG-009",
+          "ruleIndex": 8,
+          "level": "warning",
+          "message": {
+            "text": "no NetworkPolicy isolation in Deployment/bad/ollama-bad: NetworkPolicy allow-all selects this workload but an ingress rule allows traffic from every source. Fix: add default-deny + allowlist policies (see `ai-guard enforce`)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "../testdata/manifests/offending/bad.yaml"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "ollama-bad",
+                  "fullyQualifiedName": "Deployment/bad/ollama-bad",
+                  "kind": "resource"
+                }
+              ]
+            }
+          ],
+          "partialFingerprints": {
+            "aiGuardFinding/v1": "6a426e1fbfa3bb1c84d4a3acb22e9153"
+          }
+        },
+        {
+          "ruleId": "AIG-001",
+          "ruleIndex": 0,
+          "level": "error",
+          "message": {
+            "text": "vLLM without API key auth in Deployment/bad/vllm-bad: container server: no --api-key arg and no VLLM_API_KEY env. Fix: start vllm with --api-key or front it with an authenticating gateway"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "../testdata/manifests/offending/bad.yaml"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "vllm-bad",
+                  "fullyQualifiedName": "Deployment/bad/vllm-bad",
+                  "kind": "resource"
+                }
+              ]
+            }
+          ],
+          "partialFingerprints": {
+            "aiGuardFinding/v1": "bdd1c330e3131386b23af127f9777d81"
+          }
+        },
+        {
+          "ruleId": "AIG-002",
+          "ruleIndex": 1,
+          "level": "warning",
+          "message": {
+            "text": "Debug/insecure endpoint enabled in Deployment/bad/vllm-bad: container server: args contain --debug or --allow-http. Fix: remove debug flags in production"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "../testdata/manifests/offending/bad.yaml"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "vllm-bad",
+                  "fullyQualifiedName": "Deployment/bad/vllm-bad",
+                  "kind": "resource"
+                }
+              ]
+            }
+          ],
+          "partialFingerprints": {
+            "aiGuardFinding/v1": "71981404664f080525d5c2ee70e41b29"
+          }
+        },
+        {
+          "ruleId": "AIG-003",
+          "ruleIndex": 2,
+          "level": "error",
+          "message": {
+            "text": "hostNetwork enabled in Deployment/bad/vllm-bad: spec.hostNetwork: true. Fix: disable hostNetwork; use Services"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "../testdata/manifests/offending/bad.yaml"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "vllm-bad",
+                  "fullyQualifiedName": "Deployment/bad/vllm-bad",
+                  "kind": "resource"
+                }
+              ]
+            }
+          ],
+          "partialFingerprints": {
+            "aiGuardFinding/v1": "4d083faf1ed1c7d56c9ca1750bfcffd3"
+          }
+        },
+        {
+          "ruleId": "AIG-003",
+          "ruleIndex": 2,
+          "level": "error",
+          "message": {
+            "text": "hostPID enabled in Deployment/bad/vllm-bad: spec.hostPID: true. Fix: disable hostPID"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "../testdata/manifests/offending/bad.yaml"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "vllm-bad",
+                  "fullyQualifiedName": "Deployment/bad/vllm-bad",
+                  "kind": "resource"
+                }
+              ]
+            }
+          ],
+          "partialFingerprints": {
+            "aiGuardFinding/v1": "90b39f8184b3895feb195ed0e2fa2616"
+          }
+        },
+        {
+          "ruleId": "AIG-004",
+          "ruleIndex": 3,
+          "level": "error",
+          "message": {
+            "text": "hostPath volume in Deployment/bad/vllm-bad: volume models mounts host path /srv/models. Fix: use PVCs or emptyDir"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "../testdata/manifests/offending/bad.yaml"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "vllm-bad",
+                  "fullyQualifiedName": "Deployment/bad/vllm-bad",
+                  "kind": "resource"
+                }
+              ]
+            }
+          ],
+          "partialFingerprints": {
+            "aiGuardFinding/v1": "e2bad52c6036b6805bd4022a8a1d9e37"
+          }
+        },
+        {
+          "ruleId": "AIG-005",
+          "ruleIndex": 4,
+          "level": "error",
+          "message": {
+            "text": "allowPrivilegeEscalation not disabled in Deployment/bad/vllm-bad: container server: allowPrivilegeEscalation unset (defaults to true). Fix: set allowPrivilegeEscalation: false (PSS Restricted)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "../testdata/manifests/offending/bad.yaml"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "vllm-bad",
+                  "fullyQualifiedName": "Deployment/bad/vllm-bad",
+                  "kind": "resource"
+                }
+              ]
+            }
+          ],
+          "partialFingerprints": {
+            "aiGuardFinding/v1": "94196389f78f02088181309001e948cb"
+          }
+        },
+        {
+          "ruleId": "AIG-005",
+          "ruleIndex": 4,
+          "level": "error",
+          "message": {
+            "text": "privileged container in Deployment/bad/vllm-bad: container server: securityContext.privileged: true. Fix: remove privileged: true and grant only the needed capabilities"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "../testdata/manifests/offending/bad.yaml"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "vllm-bad",
+                  "fullyQualifiedName": "Deployment/bad/vllm-bad",
+                  "kind": "resource"
+                }
+              ]
+            }
+          ],
+          "partialFingerprints": {
+            "aiGuardFinding/v1": "7a39f92bb792ee785c8817ebe235bc5b"
+          }
+        },
+        {
+          "ruleId": "AIG-005",
+          "ruleIndex": 4,
+          "level": "error",
+          "message": {
+            "text": "runs as root in Deployment/bad/vllm-bad: container server: effective runAsUser: 0. Fix: set runAsUser to a non-zero UID and runAsNonRoot: true (PSS Restricted)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "../testdata/manifests/offending/bad.yaml"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "vllm-bad",
+                  "fullyQualifiedName": "Deployment/bad/vllm-bad",
+                  "kind": "resource"
+                }
+              ]
+            }
+          ],
+          "partialFingerprints": {
+            "aiGuardFinding/v1": "b18c8ab0918a368fbb74f69654683310"
+          }
+        },
+        {
+          "ruleId": "AIG-006",
+          "ruleIndex": 5,
+          "level": "warning",
+          "message": {
+            "text": "seccomp profile Unconfined in Deployment/bad/vllm-bad: container server: effective seccompProfile.type: Unconfined. Fix: set seccompProfile.type: RuntimeDefault"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "../testdata/manifests/offending/bad.yaml"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "vllm-bad",
+                  "fullyQualifiedName": "Deployment/bad/vllm-bad",
+                  "kind": "resource"
+                }
+              ]
+            }
+          ],
+          "partialFingerprints": {
+            "aiGuardFinding/v1": "47e538a9dd27def4498a322bff83f86e"
+          }
+        },
+        {
+          "ruleId": "AIG-007",
+          "ruleIndex": 6,
+          "level": "note",
+          "message": {
+            "text": "missing resource requests/limits in Deployment/bad/vllm-bad: container server lacks requests.memory, requests.cpu, limits.memory. Fix: set requests.memory, requests.cpu and limits.memory (GPU workloads starve nodes)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "../testdata/manifests/offending/bad.yaml"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "vllm-bad",
+                  "fullyQualifiedName": "Deployment/bad/vllm-bad",
+                  "kind": "resource"
+                }
+              ]
+            }
+          ],
+          "partialFingerprints": {
+            "aiGuardFinding/v1": "d6837b67073b0f7c2d5687edb7a35f52"
+          }
+        },
+        {
+          "ruleId": "AIG-008",
+          "ruleIndex": 7,
+          "level": "error",
+          "message": {
+            "text": "--trust-remote-code enabled in Deployment/bad/vllm-bad: container server: args include --trust-remote-code (arbitrary Python exec from model repo). Fix: remove --trust-remote-code; vet model code, prefer SafeTensors"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "../testdata/manifests/offending/bad.yaml"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "vllm-bad",
+                  "fullyQualifiedName": "Deployment/bad/vllm-bad",
+                  "kind": "resource"
+                }
+              ]
+            }
+          ],
+          "partialFingerprints": {
+            "aiGuardFinding/v1": "1ba2dca51af0a81f69dd1ed86ff52788"
+          }
+        },
+        {
+          "ruleId": "AIG-008",
+          "ruleIndex": 7,
+          "level": "error",
+          "message": {
+            "text": "non-SafeTensors model reference in Deployment/bad/vllm-bad: container server: arg \"--model=/models/llama.bin\" references .bin (pickle-deserialization risk). Fix: prefer .safetensors formats"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "../testdata/manifests/offending/bad.yaml"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "vllm-bad",
+                  "fullyQualifiedName": "Deployment/bad/vllm-bad",
+                  "kind": "resource"
+                }
+              ]
+            }
+          ],
+          "partialFingerprints": {
+            "aiGuardFinding/v1": "45c8ae6a204b22b487dc88d03628b8bb"
+          }
+        },
+        {
+          "ruleId": "AIG-008",
+          "ruleIndex": 7,
+          "level": "warning",
+          "message": {
+            "text": "unverified object-storage model source in Deployment/bad/vllm-bad: container server: arg \"s3://bucket/model\" loads model from unverified object storage. Fix: pin model provenance: digest-verified registry or signed artifacts"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "../testdata/manifests/offending/bad.yaml"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "vllm-bad",
+                  "fullyQualifiedName": "Deployment/bad/vllm-bad",
+                  "kind": "resource"
+                }
+              ]
+            }
+          ],
+          "partialFingerprints": {
+            "aiGuardFinding/v1": "2da1a0a3fea5416516989398b64d26f5"
+          }
+        },
+        {
+          "ruleId": "AIG-009",
+          "ruleIndex": 8,
+          "level": "warning",
+          "message": {
+            "text": "no NetworkPolicy isolation in Deployment/bad/vllm-bad: NetworkPolicy allow-all selects this workload but an ingress rule allows traffic from every source. Fix: add default-deny + allowlist policies (see `ai-guard enforce`)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "../testdata/manifests/offending/bad.yaml"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "vllm-bad",
+                  "fullyQualifiedName": "Deployment/bad/vllm-bad",
+                  "kind": "resource"
+                }
+              ]
+            }
+          ],
+          "partialFingerprints": {
+            "aiGuardFinding/v1": "19129f57f8283e3930d751a183c896f9"
+          }
+        },
+        {
+          "ruleId": "AIG-010",
+          "ruleIndex": 9,
+          "level": "error",
+          "message": {
+            "text": "inference exposed via NodePort in Deployment/bad/vllm-bad: Service vllm-bad (NodePort) selects this workload and no auth evidence was found. Fix: add engine auth (--api-key), or require auth at a gateway and annotate the workload ai.infra.guard/gateway-auth: \"true\", or use an internal Service"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "../testdata/manifests/offending/bad.yaml"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "vllm-bad",
+                  "fullyQualifiedName": "Deployment/bad/vllm-bad",
+                  "kind": "resource"
+                }
+              ]
+            }
+          ],
+          "partialFingerprints": {
+            "aiGuardFinding/v1": "54e223ac3ad519c073c5ebc7cbcd8bcd"
+          }
+        }
+      ]
+    }
+  ]
+}

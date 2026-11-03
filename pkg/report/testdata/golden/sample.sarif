@@ -1,0 +1,173 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "ai-guard",
+          "version": "1.2.3",
+          "informationUri": "https://github.com/sv222/ai-guard-k8s",
+          "rules": [
+            {
+              "id": "AIG-001",
+              "name": "No auth on the inference engine",
+              "shortDescription": {
+                "text": "No auth on the inference engine"
+              },
+              "helpUri": "https://github.com/sv222/ai-guard-k8s#what-it-checks",
+              "properties": {
+                "tags": [
+                  "security",
+                  "kubernetes"
+                ]
+              }
+            },
+            {
+              "id": "AIG-003",
+              "name": "Host namespaces",
+              "shortDescription": {
+                "text": "Host namespaces"
+              },
+              "helpUri": "https://github.com/sv222/ai-guard-k8s#what-it-checks",
+              "properties": {
+                "tags": [
+                  "security",
+                  "kubernetes"
+                ]
+              }
+            },
+            {
+              "id": "AIG-007",
+              "name": "No resource requests or limits",
+              "shortDescription": {
+                "text": "No resource requests or limits"
+              },
+              "helpUri": "https://github.com/sv222/ai-guard-k8s#what-it-checks",
+              "properties": {
+                "tags": [
+                  "security",
+                  "kubernetes"
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "AIG-003",
+          "ruleIndex": 1,
+          "level": "error",
+          "message": {
+            "text": "hostNetwork enabled in Deployment/llm/vllm: hostNetwork: true. Fix: set hostNetwork: false"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "manifests/vllm.yaml"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "vllm",
+                  "fullyQualifiedName": "Deployment/llm/vllm",
+                  "kind": "resource"
+                }
+              ]
+            }
+          ],
+          "partialFingerprints": {
+            "aiGuardFinding/v1": "a2608abef0e0d925d77099398f6c91d1"
+          }
+        },
+        {
+          "ruleId": "AIG-001",
+          "ruleIndex": 0,
+          "level": "warning",
+          "message": {
+            "text": "no auth in Deployment/llm/ollama: no key"
+          },
+          "locations": [
+            {
+              "logicalLocations": [
+                {
+                  "name": "ollama",
+                  "fullyQualifiedName": "Deployment/llm/ollama",
+                  "kind": "resource"
+                }
+              ]
+            }
+          ],
+          "partialFingerprints": {
+            "aiGuardFinding/v1": "6e76804de799ee81fd2efe7d717d958d"
+          }
+        },
+        {
+          "ruleId": "AIG-007",
+          "ruleIndex": 2,
+          "level": "note",
+          "message": {
+            "text": "missing resource requests/limits in Pod/llm/p: c"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "b.yaml"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "p",
+                  "fullyQualifiedName": "Pod/llm/p",
+                  "kind": "resource"
+                }
+              ]
+            }
+          ],
+          "partialFingerprints": {
+            "aiGuardFinding/v1": "fe809d0d6d95e1f1605b322ab7d0f336"
+          }
+        },
+        {
+          "ruleId": "AIG-003",
+          "ruleIndex": 1,
+          "level": "error",
+          "message": {
+            "text": "hostPID enabled in Deployment/llm/vllm: hostPID: true"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "manifests/vllm.yaml"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "vllm",
+                  "fullyQualifiedName": "Deployment/llm/vllm",
+                  "kind": "resource"
+                }
+              ]
+            }
+          ],
+          "partialFingerprints": {
+            "aiGuardFinding/v1": "c73d4cd89cf8576da46f41affe3cb856"
+          }
+        }
+      ]
+    }
+  ]
+}

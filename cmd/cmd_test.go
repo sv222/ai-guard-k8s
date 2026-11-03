@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"flag"
 	"io"
 	"os"
 	"path/filepath"
@@ -20,6 +21,8 @@ import (
 	"github.com/sv222/ai-guard-k8s/pkg/checks"
 	"github.com/sv222/ai-guard-k8s/pkg/enforce"
 )
+
+var update = flag.Bool("update", false, "rewrite golden files")
 
 const (
 	cleanDir     = "../testdata/manifests/clean"
@@ -543,5 +546,48 @@ func TestScanJSONIncludesSource(t *testing.T) {
 		if !strings.HasSuffix(filepath.ToSlash(f.Source), "bad.yaml") {
 			t.Fatalf("source = %q for %+v", f.Source, f)
 		}
+	}
+}
+
+func TestScanSARIF(t *testing.T) {
+	stdout, _, code := run(t, "scan", "--path", offendingDir, "--sarif")
+	if code != ExitFindings {
+		t.Fatalf("code = %d, want %d", code, ExitFindings)
+	}
+	var d struct {
+		Version string `json:"version"`
+		Runs    []struct {
+			Results []struct {
+				RuleID string `json:"ruleId"`
+			} `json:"results"`
+		} `json:"runs"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &d); err != nil {
+		t.Fatalf("invalid SARIF: %v", err)
+	}
+	if d.Version != "2.1.0" || len(d.Runs) != 1 || len(d.Runs[0].Results) != 22 {
+		t.Errorf("version %q, runs %d, want 2.1.0 with 22 results", d.Version, len(d.Runs))
+	}
+	golden := filepath.Join("testdata", "golden", "offending.sarif")
+	if *update {
+		if err := os.MkdirAll(filepath.Dir(golden), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(golden, []byte(stdout), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	want, err := os.ReadFile(golden)
+	if err != nil {
+		t.Fatalf("missing golden %s: %v (run go test ./cmd -update)", golden, err)
+	}
+	if stdout != string(want) {
+		t.Errorf("SARIF output differs from %s; run go test ./cmd -update and review the diff", golden)
+	}
+}
+
+func TestScanSARIFAndJSONConflict(t *testing.T) {
+	if _, _, code := run(t, "scan", "--path", cleanDir, "--json", "--sarif"); code != ExitFailure {
+		t.Errorf("code = %d, want %d", code, ExitFailure)
 	}
 }
