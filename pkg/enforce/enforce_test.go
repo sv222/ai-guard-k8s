@@ -359,3 +359,61 @@ func TestInvalidNamespaceIsRejected(t *testing.T) {
 		t.Error(err)
 	}
 }
+
+func TestKyvernoRulesCoverPodControllers(t *testing.T) {
+	files, err := Policies(Options{Selector: "tier=gpu,team=llm", SkipCilium: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range files {
+		var doc struct {
+			Spec struct {
+				Rules []map[string]interface{} `json:"rules"`
+			} `json:"spec"`
+		}
+		if err := yaml.Unmarshal([]byte(f.Content), &doc); err != nil {
+			t.Fatal(err)
+		}
+		kinds := map[string]map[string]interface{}{}
+		for _, r := range doc.Spec.Rules {
+			match := r["match"].(map[string]interface{})["any"].([]interface{})[0].(map[string]interface{})["resources"].(map[string]interface{})
+			for _, k := range match["kinds"].([]interface{}) {
+				kinds[k.(string)] = r
+			}
+		}
+		for _, k := range []string{"Pod", "Deployment", "StatefulSet", "DaemonSet", "Job", "CronJob"} {
+			if kinds[k] == nil {
+				t.Errorf("%s: no rule matches %s", f.Name, k)
+			}
+		}
+		if len(doc.Spec.Rules)%3 != 0 {
+			t.Errorf("%s: %d rules, want pod, controller and CronJob rules for each check", f.Name, len(doc.Spec.Rules))
+		}
+		for kind, prefix := range map[string]string{"Deployment": "spec.template", "CronJob": "spec.jobTemplate.spec.template"} {
+			r := kinds[kind]
+			conds := r["preconditions"].(map[string]interface{})["all"].([]interface{})
+			if len(conds) != 2 {
+				t.Fatalf("%s %s: %d preconditions, want one per selector term", f.Name, kind, len(conds))
+			}
+			first := conds[0].(map[string]interface{})
+			if first["key"] != `{{ request.object.`+prefix+`.metadata.labels."team" || '' }}` || first["value"] != "llm" {
+				t.Errorf("%s %s: precondition = %v", f.Name, kind, first)
+			}
+			v := r["validate"].(map[string]interface{})
+			p, ok := v["pattern"]
+			if !ok {
+				p = v["anyPattern"].([]interface{})[0]
+			}
+			for _, step := range strings.Split(prefix, ".") {
+				m, ok := p.(map[string]interface{})[step]
+				if !ok {
+					t.Fatalf("%s %s: pattern not nested under %s", f.Name, kind, prefix)
+				}
+				p = m
+			}
+			if _, ok := p.(map[string]interface{})["spec"]; !ok {
+				t.Errorf("%s %s: nested pattern lacks the pod spec", f.Name, kind)
+			}
+		}
+	}
+}

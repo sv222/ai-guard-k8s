@@ -93,4 +93,231 @@ spec:
           =(initContainers):
           - =(securityContext):
               =(privileged): "false"
+  - exclude:
+      any:
+      - resources:
+          namespaces:
+          - kube-system
+          - kube-public
+          - kube-node-lease
+    match:
+      any:
+      - resources:
+          kinds:
+          - Deployment
+          - StatefulSet
+          - DaemonSet
+          - Job
+    name: require-nonroot-controllers
+    preconditions:
+      all:
+      - key: '{{ request.object.spec.template.metadata.labels."ai.infra.guard/enabled"
+          || '''' }}'
+        operator: Equals
+        value: "true"
+    validate:
+      anyPattern:
+      - spec:
+          template:
+            spec:
+              =(containers):
+              - =(securityContext):
+                  =(runAsNonRoot): true
+              =(initContainers):
+              - =(securityContext):
+                  =(runAsNonRoot): true
+              securityContext:
+                runAsNonRoot: true
+      - spec:
+          template:
+            spec:
+              =(initContainers):
+              - securityContext:
+                  runAsNonRoot: true
+              containers:
+              - securityContext:
+                  runAsNonRoot: true
+      message: 'AI inference pods must run as non-root (runAsNonRoot: true at pod
+        level or on every container)'
+  - exclude:
+      any:
+      - resources:
+          namespaces:
+          - kube-system
+          - kube-public
+          - kube-node-lease
+    match:
+      any:
+      - resources:
+          kinds:
+          - Deployment
+          - StatefulSet
+          - DaemonSet
+          - Job
+    name: disallow-privilege-escalation-controllers
+    preconditions:
+      all:
+      - key: '{{ request.object.spec.template.metadata.labels."ai.infra.guard/enabled"
+          || '''' }}'
+        operator: Equals
+        value: "true"
+    validate:
+      message: 'AI inference containers must set allowPrivilegeEscalation: false'
+      pattern:
+        spec:
+          template:
+            spec:
+              =(initContainers):
+              - securityContext:
+                  allowPrivilegeEscalation: "false"
+              containers:
+              - securityContext:
+                  allowPrivilegeEscalation: "false"
+  - exclude:
+      any:
+      - resources:
+          namespaces:
+          - kube-system
+          - kube-public
+          - kube-node-lease
+    match:
+      any:
+      - resources:
+          kinds:
+          - Deployment
+          - StatefulSet
+          - DaemonSet
+          - Job
+    name: disallow-privileged-controllers
+    preconditions:
+      all:
+      - key: '{{ request.object.spec.template.metadata.labels."ai.infra.guard/enabled"
+          || '''' }}'
+        operator: Equals
+        value: "true"
+    validate:
+      message: AI inference containers must not be privileged
+      pattern:
+        spec:
+          template:
+            spec:
+              =(containers):
+              - =(securityContext):
+                  =(privileged): "false"
+              =(initContainers):
+              - =(securityContext):
+                  =(privileged): "false"
+  - exclude:
+      any:
+      - resources:
+          namespaces:
+          - kube-system
+          - kube-public
+          - kube-node-lease
+    match:
+      any:
+      - resources:
+          kinds:
+          - CronJob
+    name: require-nonroot-cronjobs
+    preconditions:
+      all:
+      - key: '{{ request.object.spec.jobTemplate.spec.template.metadata.labels."ai.infra.guard/enabled"
+          || '''' }}'
+        operator: Equals
+        value: "true"
+    validate:
+      anyPattern:
+      - spec:
+          jobTemplate:
+            spec:
+              template:
+                spec:
+                  =(containers):
+                  - =(securityContext):
+                      =(runAsNonRoot): true
+                  =(initContainers):
+                  - =(securityContext):
+                      =(runAsNonRoot): true
+                  securityContext:
+                    runAsNonRoot: true
+      - spec:
+          jobTemplate:
+            spec:
+              template:
+                spec:
+                  =(initContainers):
+                  - securityContext:
+                      runAsNonRoot: true
+                  containers:
+                  - securityContext:
+                      runAsNonRoot: true
+      message: 'AI inference pods must run as non-root (runAsNonRoot: true at pod
+        level or on every container)'
+  - exclude:
+      any:
+      - resources:
+          namespaces:
+          - kube-system
+          - kube-public
+          - kube-node-lease
+    match:
+      any:
+      - resources:
+          kinds:
+          - CronJob
+    name: disallow-privilege-escalation-cronjobs
+    preconditions:
+      all:
+      - key: '{{ request.object.spec.jobTemplate.spec.template.metadata.labels."ai.infra.guard/enabled"
+          || '''' }}'
+        operator: Equals
+        value: "true"
+    validate:
+      message: 'AI inference containers must set allowPrivilegeEscalation: false'
+      pattern:
+        spec:
+          jobTemplate:
+            spec:
+              template:
+                spec:
+                  =(initContainers):
+                  - securityContext:
+                      allowPrivilegeEscalation: "false"
+                  containers:
+                  - securityContext:
+                      allowPrivilegeEscalation: "false"
+  - exclude:
+      any:
+      - resources:
+          namespaces:
+          - kube-system
+          - kube-public
+          - kube-node-lease
+    match:
+      any:
+      - resources:
+          kinds:
+          - CronJob
+    name: disallow-privileged-cronjobs
+    preconditions:
+      all:
+      - key: '{{ request.object.spec.jobTemplate.spec.template.metadata.labels."ai.infra.guard/enabled"
+          || '''' }}'
+        operator: Equals
+        value: "true"
+    validate:
+      message: AI inference containers must not be privileged
+      pattern:
+        spec:
+          jobTemplate:
+            spec:
+              template:
+                spec:
+                  =(containers):
+                  - =(securityContext):
+                      =(privileged): "false"
+                  =(initContainers):
+                  - =(securityContext):
+                      =(privileged): "false"
   validationFailureAction: Audit

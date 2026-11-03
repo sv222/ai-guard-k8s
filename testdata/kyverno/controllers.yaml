@@ -1,0 +1,166 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: good-deployment, namespace: llm}
+spec:
+  selector: {matchLabels: {app: x}}
+  template:
+    metadata:
+      labels: {ai.infra.guard/enabled: "true"}
+    spec:
+      securityContext: {runAsNonRoot: true}
+      containers:
+      - name: c
+        image: x
+        securityContext: {allowPrivilegeEscalation: false}
+        resources: {requests: {memory: 1Gi, cpu: "1"}, limits: {memory: 2Gi}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: bad-deployment, namespace: llm}
+spec:
+  selector: {matchLabels: {app: x}}
+  template:
+    metadata:
+      labels: {ai.infra.guard/enabled: "true"}
+    spec:
+      hostNetwork: true
+      containers:
+      - name: c
+        image: x
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata: {name: good-statefulset, namespace: llm}
+spec:
+  selector: {matchLabels: {app: x}}
+  serviceName: x
+  template:
+    metadata:
+      labels: {ai.infra.guard/enabled: "true"}
+    spec:
+      securityContext: {runAsNonRoot: true}
+      containers:
+      - name: c
+        image: x
+        securityContext: {allowPrivilegeEscalation: false}
+        resources: {requests: {memory: 1Gi, cpu: "1"}, limits: {memory: 2Gi}}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata: {name: bad-statefulset, namespace: llm}
+spec:
+  selector: {matchLabels: {app: x}}
+  serviceName: x
+  template:
+    metadata:
+      labels: {ai.infra.guard/enabled: "true"}
+    spec:
+      hostNetwork: true
+      containers:
+      - name: c
+        image: x
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata: {name: good-daemonset, namespace: llm}
+spec:
+  selector: {matchLabels: {app: x}}
+  template:
+    metadata:
+      labels: {ai.infra.guard/enabled: "true"}
+    spec:
+      securityContext: {runAsNonRoot: true}
+      containers:
+      - name: c
+        image: x
+        securityContext: {allowPrivilegeEscalation: false}
+        resources: {requests: {memory: 1Gi, cpu: "1"}, limits: {memory: 2Gi}}
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata: {name: bad-daemonset, namespace: llm}
+spec:
+  selector: {matchLabels: {app: x}}
+  template:
+    metadata:
+      labels: {ai.infra.guard/enabled: "true"}
+    spec:
+      hostNetwork: true
+      containers:
+      - name: c
+        image: x
+---
+apiVersion: batch/v1
+kind: Job
+metadata: {name: good-job, namespace: llm}
+spec:
+  template:
+    metadata:
+      labels: {ai.infra.guard/enabled: "true"}
+    spec:
+      securityContext: {runAsNonRoot: true}
+      containers:
+      - name: c
+        image: x
+        securityContext: {allowPrivilegeEscalation: false}
+        resources: {requests: {memory: 1Gi, cpu: "1"}, limits: {memory: 2Gi}}
+---
+apiVersion: batch/v1
+kind: Job
+metadata: {name: bad-job, namespace: llm}
+spec:
+  template:
+    metadata:
+      labels: {ai.infra.guard/enabled: "true"}
+    spec:
+      hostNetwork: true
+      containers:
+      - name: c
+        image: x
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: unlabeled-deployment, namespace: llm}
+spec:
+  selector: {matchLabels: {app: x}}
+  template:
+    metadata: {}
+    spec:
+      hostNetwork: true
+      containers:
+      - name: c
+        image: x
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata: {name: good-cronjob, namespace: llm}
+spec:
+  schedule: "0 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels: {ai.infra.guard/enabled: "true"}
+        spec:
+          securityContext: {runAsNonRoot: true}
+          containers:
+          - name: c
+            image: x
+            securityContext: {allowPrivilegeEscalation: false}
+            resources: {requests: {memory: 1Gi, cpu: "1"}, limits: {memory: 2Gi}}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata: {name: bad-cronjob, namespace: llm}
+spec:
+  schedule: "0 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels: {ai.infra.guard/enabled: "true"}
+        spec:
+          hostNetwork: true
+          containers:
+          - name: c
+            image: x
