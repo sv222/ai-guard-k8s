@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- `ai-guard scan --helm <chart>` renders a local Helm chart (directory or `.tgz`) in process with the Helm v4 library and scans the result. `--values` and `--set` (both repeatable) set values, and `-n` sets the release namespace. Findings point at the template file.
+- `ai-guard scan --kustomize <dir>` builds a kustomization in process with the kustomize library and scans the result. Findings point at the file each resource came from, also when an overlay patches it.
+- `--path`, `--helm` and `--kustomize` can be combined, and the objects from all of them are checked together.
+- AIG-011 reports `hostPort` on inference containers.
+- AIG-012 reports dangerous Linux capabilities in `capabilities.add`, such as `ALL`, `SYS_ADMIN` and `NET_ADMIN`.
+- AIG-013 reports inference Services that a Gateway API `HTTPRoute` exposes without auth evidence. Envoy Gateway `SecurityPolicy` objects with an auth method on the route or its Gateway, auth `ExtensionRef` filters and auth annotations count as auth. Cluster scans list `HTTPRoute` and `SecurityPolicy` objects when the CRDs exist; a permission error gives a warning instead of failing the scan.
+- SARIF `startLine` points at the first line of the object in multi-document files instead of line 1. JSON findings have a `line` field for file scans.
+
+### Changed
+
+- New dependencies: `helm.sh/helm/v4` 4.3.1, `sigs.k8s.io/kustomize/api` and `sigs.k8s.io/kustomize/kyaml` 0.21.2. The binary is larger.
+
 ## [0.4.0] - 2026-11-03
 
 ### Added
