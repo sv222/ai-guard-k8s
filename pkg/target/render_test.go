@@ -89,7 +89,7 @@ func TestFromHelmErrors(t *testing.T) {
 }
 
 func TestFromKustomizeMapsOrigins(t *testing.T) {
-	ds, err := FromKustomize(kustOverlay)
+	ds, err := FromKustomize(kustOverlay, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,18 +121,84 @@ func TestFromKustomizeKeepsBuildMetadata(t *testing.T) {
 	}
 	write("kustomization.yml", "buildMetadata: [originAnnotations]\nresources: [pod.yaml]\n")
 	write("pod.yaml", "apiVersion: v1\nkind: Pod\nmetadata:\n  name: p\nspec:\n  containers:\n    - name: c\n      image: ollama/ollama\n")
-	ds, err := FromKustomize(dir)
+	ds, err := FromKustomize(dir, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(ds.Targets) != 1 || ds.Targets[0].Source != filepath.Join(dir, "pod.yaml") {
 		t.Errorf("targets = %+v", ds.Targets)
 	}
-	if _, err := FromKustomize(filepath.Join(dir, "missing")); err == nil {
+	if _, err := FromKustomize(filepath.Join(dir, "missing"), false); err == nil {
 		t.Error("missing dir must fail")
 	}
 	write("kustomization.yml", "resources: [missing.yaml]\n")
-	if _, err := FromKustomize(dir); err == nil || !strings.Contains(err.Error(), "build kustomization") {
+	if _, err := FromKustomize(dir, false); err == nil || !strings.Contains(err.Error(), "build kustomization") {
 		t.Errorf("bad kustomization: %v", err)
+	}
+}
+
+func TestFromKustomizeRefusesRemoteByDefault(t *testing.T) {
+	cases := map[string]string{
+		"https resource":  "resources:\n  - https://127.0.0.1:1/pod.yaml\n",
+		"git resource":    "resources:\n  - github.com/org/repo//deploy?ref=v1\n",
+		"ssh base":        "resources:\n  - git@github.com:org/repo.git//deploy\n",
+		"https patch":     "resources:\n  - pod.yaml\npatches:\n  - path: https://127.0.0.1:1/p.yaml\n",
+		"component":       "components:\n  - https://github.com/org/repo/comp\n",
+		"generator files": "resources:\n  - pod.yaml\nconfigMapGenerator:\n  - name: c\n    files:\n      - k=https://127.0.0.1:1/f\n",
+	}
+	for name, kust := range cases {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			if err := os.WriteFile(filepath.Join(dir, "kustomization.yaml"), []byte(kust), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(dir, "pod.yaml"), []byte("apiVersion: v1\nkind: Pod\nmetadata:\n  name: p\nspec:\n  containers:\n    - name: c\n      image: ollama/ollama\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			_, err := FromKustomize(dir, false)
+			if err == nil || !strings.Contains(err.Error(), "remote resource") || !strings.Contains(err.Error(), "--allow-remote") {
+				t.Fatalf("error = %v", err)
+			}
+		})
+	}
+}
+
+func TestFromKustomizeRefusesRemoteInLocalBase(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "base"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "kustomization.yaml"), []byte("resources: [base]\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "base", "kustomization.yaml"), []byte("resources:\n  - https://127.0.0.1:1/pod.yaml\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, err := FromKustomize(dir, false)
+	if err == nil || !strings.Contains(err.Error(), "remote resource") {
+		t.Fatalf("error = %v", err)
+	}
+	_, err = FromKustomize(dir, true)
+	if err == nil || strings.Contains(err.Error(), "remote resource") {
+		t.Fatalf("with allowRemote the fetch must be attempted: %v", err)
+	}
+}
+
+func TestFromKustomizeKeepsLocalDottedPaths(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "app.example.com", "org", "base"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "kustomization.yaml"), []byte("resources: [app.example.com/org/base]\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "app.example.com", "org", "base", "kustomization.yaml"), []byte("resources: [pod.yaml]\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "app.example.com", "org", "base", "pod.yaml"), []byte("apiVersion: v1\nkind: Pod\nmetadata:\n  name: p\nspec:\n  containers:\n    - name: c\n      image: ollama/ollama\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if ds, err := FromKustomize(dir, false); err != nil || len(ds.Targets) != 1 {
+		t.Fatalf("targets=%d err=%v", len(ds.Targets), err)
 	}
 }

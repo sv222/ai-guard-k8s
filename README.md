@@ -80,7 +80,7 @@ With Go, or from source:
 
 `--helm` renders a local chart directory or `.tgz` archive in process with the Helm v4 library, like `helm template`: no `helm` binary and no cluster access. `--values` (repeatable) and `--set` (repeatable, Helm `--set` syntax) override the chart values, and `-n` sets the release namespace (default `default`). The release name is `release-name`. Hook templates, including test hooks, are rendered too. Dependencies must already be in `charts/` (run `helm dependency build`). Remote charts (repository or OCI) are not fetched. Findings point at the template file, for example `charts/vllm/templates/deployment.yaml`.
 
-`--kustomize` builds a kustomization directory in process with the kustomize library, like `kustomize build`: no `kustomize` or `kubectl` binary. Findings point at the file a resource came from, for example `base/deployment.yaml` when an overlay patches it. Helm charts inside a kustomization (`helmCharts`) and exec plugins are not supported.
+`--kustomize` builds a kustomization directory in process with the kustomize library, like `kustomize build`: no `kustomize` or `kubectl` binary. Findings point at the file a resource came from, for example `base/deployment.yaml` when an overlay patches it. Helm charts inside a kustomization (`helmCharts`) and exec plugins are not supported. Remote resources and bases (an `https://` URL or a git repository) are refused with an error, because building an untrusted kustomization must not make network requests or run `git`. Add `--allow-remote` to fetch them.
 
 `--path`, `--helm` and `--kustomize` can be combined. The objects from all of them are checked together, so a NetworkPolicy under `--path` counts for a workload from `--helm`.
 

@@ -13,19 +13,20 @@ import (
 
 func newScanCmd(kubeconfig *string) *cobra.Command {
 	var (
-		path      string
-		helm      string
-		values    []string
-		set       []string
-		kustomize string
-		asJSON    bool
-		asSARIF   bool
-		selector  string
-		namespace string
-		cluster   bool
-		failOn    string
-		offline   bool
-		lenient   bool
+		path        string
+		helm        string
+		values      []string
+		set         []string
+		kustomize   string
+		allowRemote bool
+		asJSON      bool
+		asSARIF     bool
+		selector    string
+		namespace   string
+		cluster     bool
+		failOn      string
+		offline     bool
+		lenient     bool
 
 		enforceSel string
 	)
@@ -47,15 +48,16 @@ func newScanCmd(kubeconfig *string) *cobra.Command {
 				fmt.Fprintln(c.ErrOrStderr(), "warning: --offline is deprecated and has no effect; --path already skips the cluster")
 			}
 			res, err := scanner.Scan(c.Context(), scanner.Options{
-				Path:       path,
-				Helm:       helm,
-				HelmValues: values,
-				HelmSet:    set,
-				Kustomize:  kustomize,
-				Cluster:    cluster || (path == "" && helm == "" && kustomize == ""),
-				Kubeconfig: *kubeconfig,
-				Namespace:  namespace,
-				Selector:   selector,
+				Path:        path,
+				Helm:        helm,
+				HelmValues:  values,
+				HelmSet:     set,
+				Kustomize:   kustomize,
+				AllowRemote: allowRemote,
+				Cluster:     cluster || (path == "" && helm == "" && kustomize == ""),
+				Kubeconfig:  *kubeconfig,
+				Namespace:   namespace,
+				Selector:    selector,
 
 				EnforceSelector: enforceSel,
 			})
@@ -93,6 +95,7 @@ func newScanCmd(kubeconfig *string) *cobra.Command {
 	c.Flags().StringArrayVar(&values, "values", nil, "values file for --helm (can be repeated)")
 	c.Flags().StringArrayVar(&set, "set", nil, "value for --helm, for example image.tag=v1 (can be repeated)")
 	c.Flags().StringVar(&kustomize, "kustomize", "", "kustomization directory to build and scan (skips the cluster unless --cluster is set)")
+	c.Flags().BoolVar(&allowRemote, "allow-remote", false, "let --kustomize fetch remote resources and bases (HTTP and git); refused by default")
 	c.Flags().BoolVar(&cluster, "cluster", false, "also scan the live cluster when --path, --helm or --kustomize is set")
 	c.Flags().BoolVar(&asJSON, "json", false, "JSON output")
 	c.Flags().BoolVar(&asSARIF, "sarif", false, "SARIF 2.1.0 output for GitHub code scanning")
