@@ -104,7 +104,7 @@ func helmSource(chartPath, src string) string {
 	return filepath.Join(chartPath, filepath.FromSlash(rest))
 }
 
-func FromKustomize(dir string) (DirScan, error) {
+func FromKustomize(dir string, allowRemote bool) (DirScan, error) {
 	abs, err := filepath.Abs(dir)
 	if err == nil {
 		abs, err = filepath.EvalSymlinks(abs)
@@ -113,7 +113,11 @@ func FromKustomize(dir string) (DirScan, error) {
 		return DirScan{}, err
 	}
 	k := krusty.MakeKustomizer(krusty.MakeDefaultOptions())
-	m, err := k.Run(originFS{FileSystem: filesys.MakeFsOnDisk(), root: abs}, abs)
+	fs := &originFS{FileSystem: filesys.MakeFsOnDisk(), root: abs, allowRemote: allowRemote}
+	m, err := k.Run(fs, abs)
+	if fs.refused != nil {
+		return DirScan{}, fmt.Errorf("build kustomization %s: %w", dir, fs.refused)
+	}
 	if err != nil {
 		return DirScan{}, fmt.Errorf("build kustomization %s: %w", dir, err)
 	}
@@ -151,13 +155,24 @@ func consumeRendered(out *DirScan, data []byte, source string) {
 
 type originFS struct {
 	filesys.FileSystem
-	root string
+	root        string
+	allowRemote bool
+	refused     error
 }
 
-func (f originFS) ReadFile(path string) ([]byte, error) {
+func (f *originFS) ReadFile(path string) ([]byte, error) {
 	data, err := f.FileSystem.ReadFile(path)
-	if err != nil || filepath.Dir(path) != f.root || !slices.Contains(konfig.RecognizedKustomizationFileNames(), filepath.Base(path)) {
+	if err != nil || !slices.Contains(konfig.RecognizedKustomizationFileNames(), filepath.Base(path)) {
 		return data, err
+	}
+	if !f.allowRemote {
+		if ref, ok := findRemoteRef(f.FileSystem, filepath.Dir(path), data); ok {
+			f.refused = cmp.Or(f.refused, errRemoteRef(path, ref))
+			return nil, f.refused
+		}
+	}
+	if filepath.Dir(path) != f.root {
+		return data, nil
 	}
 	var kust map[string]any
 	if err := yaml.Unmarshal(data, &kust); err != nil || kust == nil {

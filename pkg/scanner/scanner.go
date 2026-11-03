@@ -22,6 +22,7 @@ type Options struct {
 	HelmValues      []string
 	HelmSet         []string
 	Kustomize       string
+	AllowRemote     bool
 	Cluster         bool
 	Kubeconfig      string
 	Namespace       string
@@ -105,7 +106,7 @@ func localSources(o Options) []source {
 		out = append(out, source{"in the rendered Helm chart " + o.Helm, "", func() (target.DirScan, error) { return target.FromHelm(o.Helm, o.Namespace, o.HelmValues, o.HelmSet) }})
 	}
 	if o.Kustomize != "" {
-		out = append(out, source{"in the kustomize build of " + o.Kustomize, "", func() (target.DirScan, error) { return target.FromKustomize(o.Kustomize) }})
+		out = append(out, source{"in the kustomize build of " + o.Kustomize, "", func() (target.DirScan, error) { return target.FromKustomize(o.Kustomize, o.AllowRemote) }})
 	}
 	return out
 }
