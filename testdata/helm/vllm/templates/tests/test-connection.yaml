@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ .Release.Name }}-vllm-test
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    helm.sh/hook: test
+spec:
+  containers:
+    - name: curl
+      image: vllm/vllm-openai:{{ .Chart.AppVersion }}
+      command: ["curl", "http://{{ .Release.Name }}-vllm:8000/health"]
