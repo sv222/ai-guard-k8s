@@ -183,7 +183,7 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
         with:
           go-version: "1.27.3"
-      - run: go install github.com/sv222/ai-guard-k8s@v0.4.0
+      - run: go install github.com/sv222/ai-guard-k8s@v0.5.0
       - run: ai-guard-k8s scan --path manifests/ --fail-on high
 ```
 
@@ -214,7 +214,7 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
         with:
           go-version: "1.27.3"
-      - run: go install github.com/sv222/ai-guard-k8s@v0.4.0
+      - run: go install github.com/sv222/ai-guard-k8s@v0.5.0
       - run: ai-guard-k8s scan --path manifests/ --sarif > ai-guard.sarif
         continue-on-error: true
       - uses: github/codeql-action/upload-sarif@1fc58d04a4d4374f921bdac573c3811c240f9c26

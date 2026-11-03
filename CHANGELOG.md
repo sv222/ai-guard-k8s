@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-03
+
 ### Added
 
 - `ai-guard scan --helm <chart>` renders a local Helm chart (directory or `.tgz`) in process with the Helm v4 library and scans the result. `--values` and `--set` (both repeatable) set values, and `-n` sets the release namespace. Findings point at the template file.
