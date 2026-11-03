@@ -5,7 +5,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/sv222/ai-guard-k8s/pkg/detect"
 	"github.com/sv222/ai-guard-k8s/pkg/target"
 	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -80,11 +79,7 @@ func hasGatewayAuth(w target.WorkloadTarget) bool {
 }
 
 func workloadHasAuth(w target.WorkloadTarget) bool {
-	matched := detect.EngineContainers(w)
-	if len(matched) == 0 {
-		matched = w.Containers()
-	}
-	for _, c := range matched {
+	for _, c := range inferenceContainers(w) {
 		if hasAuthEvidence(c) {
 			return true
 		}
