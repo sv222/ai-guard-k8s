@@ -73,11 +73,13 @@ type IngressEntry struct {
 }
 
 type DirScan struct {
-	Targets   []WorkloadTarget
-	NetPols   []NetworkPolicyEntry
-	Services  []ServiceEntry
-	Ingresses []IngressEntry
-	Warnings  []string
-	Failed    int
-	Objects   int
+	Targets      []WorkloadTarget
+	NetPols      []NetworkPolicyEntry
+	Services     []ServiceEntry
+	Ingresses    []IngressEntry
+	HTTPRoutes   []HTTPRouteEntry
+	AuthPolicies []AuthPolicyEntry
+	Warnings     []string
+	Failed       int
+	Objects      int
 }

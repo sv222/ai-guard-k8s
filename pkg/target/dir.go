@@ -163,12 +163,31 @@ func consumeObject(out *DirScan, raw []byte, source string, line int) error {
 		}
 		return nil
 	}
-	if tm.Kind == "Rollout" && strings.HasPrefix(tm.APIVersion, "argoproj.io/") {
+	switch {
+	case tm.Kind == "Rollout" && strings.HasPrefix(tm.APIVersion, "argoproj.io/"):
 		var o rollout
 		if err := decodeInto(raw, &o); err != nil {
 			return err
 		}
 		out.Targets = append(out.Targets, fromTemplate("Rollout", o.ObjectMeta, o.Spec.Template, source, line))
+		out.Objects++
+		return nil
+	case tm.Kind == "HTTPRoute" && strings.HasPrefix(tm.APIVersion, gatewayGroup+"/"):
+		e, err := httpRouteEntry(raw)
+		if err != nil {
+			return err
+		}
+		out.HTTPRoutes = append(out.HTTPRoutes, e)
+		out.Objects++
+		return nil
+	case tm.Kind == "SecurityPolicy" && strings.HasPrefix(tm.APIVersion, envoyGatewayGroup+"/"):
+		e, ok, err := authPolicyEntry(raw)
+		if err != nil {
+			return err
+		}
+		if ok {
+			out.AuthPolicies = append(out.AuthPolicies, e)
+		}
 		out.Objects++
 		return nil
 	}

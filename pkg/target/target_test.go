@@ -3,6 +3,9 @@ package target
 import (
 	"context"
 	"errors"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,7 +20,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/rest"
 	k8stesting "k8s.io/client-go/testing"
 )
 
@@ -630,5 +635,123 @@ func TestFromBytesBadSeparatorKeepsEarlierDocs(t *testing.T) {
 	ds := FromBytes([]byte("apiVersion: v1\nkind: Pod\nmetadata:\n  name: a\n---\napiVersion: v1\nkind: Pod\nmetadata:\n  name: b\n--- x\n"), "x.yaml")
 	if len(ds.Targets) != 1 || ds.Targets[0].Name != "a" || ds.Failed != 1 || len(ds.Warnings) != 1 {
 		t.Fatalf("targets=%+v failed=%d warnings=%v", ds.Targets, ds.Failed, ds.Warnings)
+	}
+}
+
+func TestFromBytesGatewayAPI(t *testing.T) {
+	ds := FromBytes([]byte(`apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: chat
+  namespace: llm
+spec:
+  parentRefs:
+    - name: public
+      namespace: infra
+    - name: mesh
+      kind: Service
+      group: ""
+  rules:
+    - backendRefs:
+        - name: vllm
+          port: 8000
+        - name: vllm
+          port: 8001
+        - name: remote
+          namespace: other
+        - name: pool
+          group: inference.networking.k8s.io
+          kind: InferencePool
+    - filters:
+        - type: ExtensionRef
+          extensionRef:
+            group: traefik.io
+            kind: Middleware
+            name: oidc-login
+      backendRefs:
+        - name: ollama
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: jwt
+  namespace: infra
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: public
+  jwt:
+    providers: []
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: cors-only
+  namespace: llm
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: chat
+  cors:
+    allowOrigins: ["*"]
+---
+apiVersion: example.com/v1
+kind: HTTPRoute
+metadata:
+  name: not-gateway-api
+`), "x.yaml")
+	if ds.Failed != 0 || ds.Objects != 4 {
+		t.Fatalf("failed=%d objects=%d warnings=%v", ds.Failed, ds.Objects, ds.Warnings)
+	}
+	if len(ds.HTTPRoutes) != 1 {
+		t.Fatalf("routes = %+v", ds.HTTPRoutes)
+	}
+	r := ds.HTTPRoutes[0]
+	if r.Namespace != "llm" || r.Name != "chat" || !r.AuthFilter ||
+		strings.Join(r.Gateways, ",") != "infra/public" ||
+		strings.Join(r.Services, ",") != "llm/vllm,other/remote,llm/ollama" {
+		t.Errorf("route = %+v", r)
+	}
+	if len(ds.AuthPolicies) != 1 || ds.AuthPolicies[0].Name != "jwt" || strings.Join(ds.AuthPolicies[0].Targets, ",") != "Gateway/infra/public" {
+		t.Errorf("auth policies = %+v", ds.AuthPolicies)
+	}
+}
+
+func TestFromClusterGatewayAPI(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/apis/gateway.networking.k8s.io/v1/namespaces/llm/httproutes":
+			fmt.Fprint(w, `{"items":[{"metadata":{"name":"chat","namespace":"llm"},"spec":{"rules":[{"backendRefs":[{"name":"vllm"}]}]}}]}`)
+		case "/apis/gateway.envoyproxy.io/v1alpha1/namespaces/llm/securitypolicies":
+			w.WriteHeader(http.StatusForbidden)
+			fmt.Fprint(w, `{"kind":"Status","apiVersion":"v1","status":"Failure","reason":"Forbidden","code":403}`)
+		case "/apis/apps/v1/namespaces/llm/replicasets":
+			fmt.Fprint(w, `{"items":[]}`)
+		default:
+			if strings.HasPrefix(r.URL.Path, "/apis/gateway") {
+				w.WriteHeader(http.StatusNotFound)
+				fmt.Fprint(w, `{"kind":"Status","apiVersion":"v1","status":"Failure","reason":"NotFound","code":404}`)
+				return
+			}
+			fmt.Fprint(w, `{"items":[]}`)
+		}
+	}))
+	defer srv.Close()
+	cs, err := kubernetes.NewForConfig(&rest.Config{Host: srv.URL})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ds, err := FromClientset(context.Background(), cs, "llm")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ds.HTTPRoutes) != 1 || strings.Join(ds.HTTPRoutes[0].Services, ",") != "llm/vllm" {
+		t.Errorf("routes = %+v", ds.HTTPRoutes)
+	}
+	if len(ds.Warnings) != 1 || !strings.Contains(ds.Warnings[0], "securitypolicies") {
+		t.Errorf("warnings = %v", ds.Warnings)
 	}
 }

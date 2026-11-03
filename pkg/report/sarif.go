@@ -34,6 +34,7 @@ var ruleNames = map[string]string{
 	"AIG-010": "Exposed by LoadBalancer, NodePort or Ingress",
 	"AIG-011": "hostPort on an inference container",
 	"AIG-012": "Dangerous Linux capabilities",
+	"AIG-013": "Exposed by a Gateway API HTTPRoute",
 }
 
 type sarifLog struct {

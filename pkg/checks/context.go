@@ -16,9 +16,11 @@ const GatewayAuthKey = "ai.infra.guard/gateway-auth"
 var ingressAuthHints = []string{"auth-url", "auth-type", "auth-signin", "auth-secret", "oauth2"}
 
 type ScanContext struct {
-	NetPols   []target.NetworkPolicyEntry
-	Services  []target.ServiceEntry
-	Ingresses []target.IngressEntry
+	NetPols      []target.NetworkPolicyEntry
+	Services     []target.ServiceEntry
+	Ingresses    []target.IngressEntry
+	HTTPRoutes   []target.HTTPRouteEntry
+	AuthPolicies []target.AuthPolicyEntry
 }
 
 func RunContextChecks(w target.WorkloadTarget, ctx ScanContext) []Finding {
@@ -56,7 +58,41 @@ func RunContextChecks(w target.WorkloadTarget, ctx ScanContext) []Finding {
 			}
 		}
 	}
+	for _, r := range ctx.HTTPRoutes {
+		if routeHasAuth(r, ctx.AuthPolicies) {
+			continue
+		}
+		for _, ref := range r.Services {
+			for _, s := range ctx.Services {
+				if s.Namespace != w.Namespace || ref != s.Namespace+"/"+s.Name || !selectorSubset(s.Selector, w.Labels) {
+					continue
+				}
+				out = append(out, Finding{ID: "AIG-013", Title: "inference exposed via HTTPRoute", Severity: "High",
+					Evidence: "HTTPRoute " + r.Namespace + "/" + r.Name + " routes to Service " + s.Name + " which selects this workload and no auth evidence was found",
+					Hint:     "add engine auth (--api-key), or attach an auth policy to the HTTPRoute or its Gateway (for example an Envoy Gateway SecurityPolicy), or annotate the HTTPRoute " + GatewayAuthKey + ": \"true\""}.on(w))
+			}
+		}
+	}
 	return out
+}
+
+func routeHasAuth(r target.HTTPRouteEntry, pols []target.AuthPolicyEntry) bool {
+	if r.AuthFilter || ingressHasAuth(r.Annotations) {
+		return true
+	}
+	for _, p := range pols {
+		for _, t := range p.Targets {
+			if t == "HTTPRoute/"+r.Namespace+"/"+r.Name {
+				return true
+			}
+			for _, g := range r.Gateways {
+				if t == "Gateway/"+g {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 func ingressHasAuth(ann map[string]string) bool {

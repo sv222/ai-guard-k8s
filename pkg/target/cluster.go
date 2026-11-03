@@ -156,5 +156,5 @@ func FromClientset(ctx context.Context, cs kubernetes.Interface, namespace strin
 			out.Ingresses = append(out.Ingresses, ingressEntry(o))
 		}
 	}
-	return out, nil
+	return out, listGatewayObjects(ctx, cs, namespace, &out)
 }
