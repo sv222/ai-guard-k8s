@@ -85,7 +85,7 @@ func Analyze(ds target.DirScan, selector string) []checks.Finding {
 }
 
 func AnalyzeWith(ds target.DirScan, extraSelector, enforceSelector string) ([]checks.Finding, []string) {
-	ctx := checks.ScanContext{NetPols: ds.NetPols, Services: ds.Services, Ingresses: ds.Ingresses}
+	ctx := checks.ScanContext{NetPols: ds.NetPols, Services: ds.Services, Ingresses: ds.Ingresses, HTTPRoutes: ds.HTTPRoutes, AuthPolicies: ds.AuthPolicies}
 	enforceLabels, _ := selector.Parse(enforceSelector)
 	var out []checks.Finding
 	var warnings []string
