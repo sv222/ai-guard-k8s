@@ -48,7 +48,8 @@ func FromHelm(chartPath, namespace string, valueFiles, set []string) (DirScan, e
 	inst := action.NewInstall(action.NewConfiguration(action.ConfigurationSetLogger(slog.DiscardHandler)))
 	inst.DryRunStrategy = action.DryRunClient
 	inst.ReleaseName = "release-name"
-	inst.Namespace = orDefault(namespace, "default")
+	ns := orDefault(namespace, "default")
+	inst.Namespace = ns
 	inst.Replace = true
 	rel, err := inst.Run(ch, vals)
 	if err != nil {
@@ -77,14 +78,20 @@ func FromHelm(chartPath, namespace string, valueFiles, set []string) (DirScan, e
 		if !ok {
 			src = ""
 		}
-		add(src, string(d.data))
+		add(src, string(applyNamespace(d.data, ns)))
 	}
 	for _, h := range acc.Hooks() {
 		ha, err := release.NewHookAccessor(h)
 		if err != nil {
 			return DirScan{}, err
 		}
-		add(ha.Path(), ha.Manifest())
+		hdocs, err := splitDocuments([]byte(ha.Manifest()))
+		if err != nil {
+			return DirScan{}, fmt.Errorf("render Helm chart %s: %w", chartPath, err)
+		}
+		for _, hd := range hdocs {
+			add(ha.Path(), string(applyNamespace(hd.data, ns)))
+		}
 	}
 	var out DirScan
 	for _, src := range order {
@@ -184,4 +191,57 @@ func (f *originFS) ReadFile(path string) ([]byte, error) {
 	}
 	kust["buildMetadata"] = append(meta, types.OriginAnnotations)
 	return yaml.Marshal(kust)
+}
+
+var clusterScopedKinds = map[string]bool{
+	"Namespace": true, "Node": true, "PersistentVolume": true, "ClusterRole": true, "ClusterRoleBinding": true,
+	"CustomResourceDefinition": true, "StorageClass": true, "PriorityClass": true, "IngressClass": true,
+	"RuntimeClass": true, "APIService": true, "CSIDriver": true, "CSINode": true, "VolumeAttachment": true,
+	"MutatingWebhookConfiguration": true, "ValidatingWebhookConfiguration": true,
+	"ValidatingAdmissionPolicy": true, "ValidatingAdmissionPolicyBinding": true,
+	"GatewayClass": true, "ClusterPolicy": true, "ClusterIssuer": true,
+}
+
+func applyNamespace(doc []byte, ns string) []byte {
+	var obj map[string]any
+	if err := yaml.Unmarshal(doc, &obj); err != nil || obj == nil {
+		return doc
+	}
+	if !setNamespace(obj, ns) {
+		return doc
+	}
+	out, err := yaml.Marshal(obj)
+	if err != nil {
+		return doc
+	}
+	return out
+}
+
+func setNamespace(obj map[string]any, ns string) bool {
+	kind, _ := obj["kind"].(string)
+	if items, ok := obj["items"].([]any); ok && strings.HasSuffix(kind, "List") {
+		changed := false
+		for _, it := range items {
+			if m, ok := it.(map[string]any); ok && setNamespace(m, ns) {
+				changed = true
+			}
+		}
+		return changed
+	}
+	if kind == "" || clusterScopedKinds[kind] {
+		return false
+	}
+	meta, ok := obj["metadata"].(map[string]any)
+	if !ok {
+		if _, has := obj["metadata"]; has {
+			return false
+		}
+		meta = map[string]any{}
+		obj["metadata"] = meta
+	}
+	if s, _ := meta["namespace"].(string); s != "" {
+		return false
+	}
+	meta["namespace"] = ns
+	return true
 }

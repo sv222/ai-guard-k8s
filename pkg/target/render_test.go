@@ -202,3 +202,67 @@ func TestFromKustomizeKeepsLocalDottedPaths(t *testing.T) {
 		t.Fatalf("targets=%d err=%v", len(ds.Targets), err)
 	}
 }
+
+func TestFromHelmAppliesReleaseNamespace(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "templates"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "Chart.yaml"), []byte("apiVersion: v2\nname: plain\nversion: 0.1.0\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	tpl := `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: plain
+spec:
+  selector:
+    matchLabels: {app: plain}
+  template:
+    metadata:
+      labels: {app: plain}
+    spec:
+      containers:
+        - name: c
+          image: ollama/ollama
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: plain
+  namespace: other
+spec:
+  selector: {app: plain}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: plain
+`
+	if err := os.WriteFile(filepath.Join(dir, "templates", "all.yaml"), []byte(tpl), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	ds, err := FromHelm(dir, "llm", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ds.Targets) != 1 || ds.Targets[0].Namespace != "llm" {
+		t.Errorf("targets = %+v", ds.Targets)
+	}
+	if len(ds.Services) != 1 || ds.Services[0].Namespace != "other" {
+		t.Errorf("services = %+v", ds.Services)
+	}
+}
+
+func TestApplyNamespaceSkipsClusterScoped(t *testing.T) {
+	if got := applyNamespace([]byte("apiVersion: v1\nkind: Namespace\nmetadata:\n  name: x\n"), "llm"); strings.Contains(string(got), "namespace") {
+		t.Errorf("namespace set on cluster-scoped object: %s", got)
+	}
+	if got := applyNamespace([]byte("apiVersion: rbac.authorization.k8s.io/v1\nkind: ClusterRole\nmetadata:\n  name: x\n"), "llm"); strings.Contains(string(got), "namespace") {
+		t.Errorf("namespace set on ClusterRole: %s", got)
+	}
+	list := "apiVersion: v1\nkind: List\nitems:\n  - apiVersion: v1\n    kind: Pod\n    metadata:\n      name: p\n"
+	if got := applyNamespace([]byte(list), "llm"); !strings.Contains(string(got), "namespace: llm") {
+		t.Errorf("list item not namespaced: %s", got)
+	}
+}
