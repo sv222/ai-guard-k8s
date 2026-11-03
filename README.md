@@ -180,7 +180,7 @@ The actions are pinned by commit SHA and ai-guard by tag. Update them when you u
 
 ## Use with GitHub code scanning
 
-`--sarif` prints the findings as SARIF 2.1.0. Upload the file with `github/codeql-action/upload-sarif` and the findings show up as code scanning alerts in the Security tab and on pull requests.
+`--sarif` prints the findings as SARIF 2.1.0. Upload the file with `github/codeql-action/upload-sarif` and the findings show up as code scanning alerts in the Security tab and on pull requests. Code scanning accepts only results with a file location, so upload SARIF from `--path` scans. Results from a cluster scan have no file and GitHub rejects them.
 
 ```yaml
 name: ai-guard-code-scanning
