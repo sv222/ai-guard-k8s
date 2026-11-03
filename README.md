@@ -60,7 +60,7 @@ The signing and the SBOM run when a version tag is pushed. The build provenance 
 
 With Go, or from source:
 
-    go install github.com/sv222/ai-guard-k8s@latest
+    go install github.com/sv222/ai-guard-k8s@latest   # installs the binary as ai-guard-k8s
 
     git clone https://github.com/sv222/ai-guard-k8s.git
     cd ai-guard-k8s && make build && ./ai-guard --version
@@ -173,7 +173,7 @@ jobs:
         with:
           go-version: "1.27.3"
       - run: go install github.com/sv222/ai-guard-k8s@v0.4.0
-      - run: ai-guard scan --path manifests/ --fail-on high
+      - run: ai-guard-k8s scan --path manifests/ --fail-on high
 ```
 
 The actions are pinned by commit SHA and ai-guard by tag. Update them when you upgrade.
@@ -204,7 +204,7 @@ jobs:
         with:
           go-version: "1.27.3"
       - run: go install github.com/sv222/ai-guard-k8s@v0.4.0
-      - run: ai-guard scan --path manifests/ --sarif > ai-guard.sarif
+      - run: ai-guard-k8s scan --path manifests/ --sarif > ai-guard.sarif
         continue-on-error: true
       - uses: github/codeql-action/upload-sarif@1fc58d04a4d4374f921bdac573c3811c240f9c26
         with:
