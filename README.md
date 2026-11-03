@@ -322,7 +322,7 @@ Known gaps from this run:
 
 - Checks are static heuristics on Kubernetes objects. They do not see runtime behavior.
 - Rendered Helm and kustomize objects point at the template or resource file, but not at a line in it, because the rendered text has no lines in the source.
-- Only Envoy Gateway `SecurityPolicy` is read as a Gateway API auth policy. Istio `AuthorizationPolicy` and other implementations need `ai.infra.guard/gateway-auth: "true"` on the route or the workload.
+- AIG-013 recognises only Envoy Gateway `SecurityPolicy` and `ExtensionRef` filters (with `auth`, `jwt` or `oidc` in the kind or name) as auth on a Gateway API route. Istio `AuthorizationPolicy`, Kong and other implementations are not recognised yet and need `ai.infra.guard/gateway-auth: "true"` on the route or the workload.
 - Auth detection is evidence-based. It looks for `--api-key` and known env names. It cannot prove auth works. vLLM `--api-key` does not cover every endpoint, so a pass on AIG-001 is not proof of safety.
 - Engines are found by image or workload name. A custom image may need the label or `--workload-selector`.
 - Pods owned by a Deployment, ReplicaSet, ReplicationController, StatefulSet, DaemonSet, Job or CronJob are not scanned alone. Their owner is. ReplicaSets owned by a Deployment, and ReplicaSets or ReplicationControllers scaled to 0, are skipped in cluster scans. A Pod owned by another custom controller is scanned as a Pod.
