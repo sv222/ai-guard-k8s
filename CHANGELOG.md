@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-03
+
+### Added
+
+- `ai-guard scan --sarif` prints SARIF 2.1.0 for GitHub code scanning. Each finding is a result with the rule ID (`AIG-xxx`), a level (`error`, `warning` or `note` for High, Medium or Low), a message, the source file and the Kubernetes object as a logical location. `--sarif` and `--json` cannot be used together. The README has a workflow example with `github/codeql-action/upload-sarif`.
+- The generated Kyverno policies also check Deployments, StatefulSets, DaemonSets, Jobs and CronJobs whose pod template has the enforce label. In `Enforce` mode a bad controller is rejected before it creates pods. Before, only the pods were rejected, and the controller was applied without an error. `scripts/kyverno-check.sh` checks the new rules against `testdata/kyverno/controllers.yaml`.
+
+### Changed
+
+- `github.com/spf13/cobra` 1.9.1 to 1.10.2; `k8s.io/api`, `k8s.io/apimachinery` and `k8s.io/client-go` 0.32.9 to 0.37.1; `sigs.k8s.io/yaml` 1.4.0 to 1.6.0.
+- GitHub Actions: `actions/checkout` 7.0.1, `actions/setup-go` 7.0.0, `sigstore/cosign-installer` 4.1.2 (still installs cosign v2.6.5), `goreleaser/goreleaser-action` 7.3.0. CI and release use Go 1.27.3.
+- Dependabot no longer updates `k8s.io/api` on its own. It moves together with `k8s.io/client-go`. A separate update of `k8s.io/api` failed, because the old client-go still imports packages that the new `k8s.io/api` removed.
+
+### Fixed
+
+- `govulncheck` reported GO-2026-6809 (`crypto/x509`, fixed in Go 1.27.3) for builds with Go 1.27.2.
+
 ## [0.3.0] - 2026-10-14
 
 ### Changed
@@ -82,7 +99,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Label `ai.infra.guard/enabled` and annotation `ai.infra.guard/gateway-auth`.
 - Policy pack in `policies/`, checked by a golden test.
 
-[Unreleased]: https://github.com/sv222/ai-guard-k8s/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/sv222/ai-guard-k8s/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/sv222/ai-guard-k8s/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/sv222/ai-guard-k8s/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/sv222/ai-guard-k8s/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/sv222/ai-guard-k8s/releases/tag/v0.1.0
