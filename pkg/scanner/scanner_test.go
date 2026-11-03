@@ -3,6 +3,8 @@ package scanner
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -96,6 +98,48 @@ func TestScanValidation(t *testing.T) {
 	}
 	if _, err := Scan(context.Background(), Options{Path: fixtures + "/missing"}); err == nil {
 		t.Error("expected error for missing path")
+	}
+	if _, err := Scan(context.Background(), Options{Path: fixtures, HelmSet: []string{"a=b"}}); err == nil {
+		t.Error("expected error for --set without a chart")
+	}
+}
+
+func TestScanRenderedSources(t *testing.T) {
+	res, err := Scan(context.Background(), Options{
+		Helm: "../../testdata/helm/vllm", HelmSet: []string{"service.type=NodePort"}, Namespace: "llm",
+		Kustomize: "../../testdata/kustomize/overlay",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]string{}
+	for _, f := range res.Findings {
+		got[f.ID+" "+f.Name] = f.Source
+	}
+	want := map[string]string{
+		"AIG-001 release-name-vllm": "../../testdata/helm/vllm/templates/deployment.yaml",
+		"AIG-010 release-name-vllm": "../../testdata/helm/vllm/templates/deployment.yaml",
+		"AIG-001 vllm":              "../../testdata/kustomize/base/deployment.yaml",
+		"AIG-012 vllm":              "../../testdata/kustomize/base/deployment.yaml",
+	}
+	if len(got) != len(want) {
+		t.Errorf("findings = %v, want %v", got, want)
+	}
+	for k, v := range want {
+		if got[k] != filepath.FromSlash(v) {
+			t.Errorf("%s: source %q, want %q", k, got[k], v)
+		}
+	}
+}
+
+func TestScanEmptyRenderIsError(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "Chart.yaml"), []byte("apiVersion: v2\nname: empty\nversion: 0.1.0\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, err := Scan(context.Background(), Options{Helm: dir})
+	if err == nil || !strings.Contains(err.Error(), "rendered Helm chart") {
+		t.Errorf("err = %v", err)
 	}
 }
 

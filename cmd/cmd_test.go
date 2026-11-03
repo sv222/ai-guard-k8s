@@ -591,3 +591,24 @@ func TestScanSARIFAndJSONConflict(t *testing.T) {
 		t.Errorf("code = %d, want %d", code, ExitFailure)
 	}
 }
+
+func TestScanHelmAndKustomize(t *testing.T) {
+	brokenKubeconfig(t)
+	stdout, stderr, code := run(t, "scan", "--helm", "../testdata/helm/vllm", "--set", "hostPort=8000", "--set", "apiKey=k", "--json")
+	if code != ExitFindings {
+		t.Fatalf("helm: code = %d, stderr = %s", code, stderr)
+	}
+	var fs []checks.Finding
+	if err := json.Unmarshal([]byte(stdout), &fs); err != nil {
+		t.Fatal(err)
+	}
+	if len(fs) != 1 || fs[0].ID != "AIG-011" || fs[0].Source != filepath.FromSlash("../testdata/helm/vllm/templates/deployment.yaml") {
+		t.Errorf("helm findings = %+v", fs)
+	}
+	if _, stderr, code := run(t, "scan", "--kustomize", "../testdata/kustomize/overlay"); code != ExitFindings {
+		t.Errorf("kustomize: code = %d, stderr = %s", code, stderr)
+	}
+	if _, stderr, code := run(t, "scan", "--path", cleanDir, "--values", "v.yaml"); code != ExitFailure || !strings.Contains(stderr, "need --helm") {
+		t.Errorf("--values without --helm: code = %d, stderr = %s", code, stderr)
+	}
+}
