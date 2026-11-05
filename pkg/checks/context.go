@@ -21,6 +21,8 @@ type ScanContext struct {
 	Ingresses    []target.IngressEntry
 	HTTPRoutes   []target.HTTPRouteEntry
 	AuthPolicies []target.AuthPolicyEntry
+	MeshPolicies []target.MeshPolicyEntry
+	KongPlugins  []target.KongPluginEntry
 }
 
 func RunContextChecks(w target.WorkloadTarget, ctx ScanContext) []Finding {
@@ -37,19 +39,20 @@ func RunContextChecks(w target.WorkloadTarget, ctx ScanContext) []Finding {
 		if s.Namespace != w.Namespace || (s.Type != "LoadBalancer" && s.Type != "NodePort") {
 			continue
 		}
-		if selectorSubset(s.Selector, w.Labels) {
+		if selectorSubset(s.Selector, w.Labels) && !meshProtects(w, s.Name, nil, ctx.MeshPolicies) {
 			out = append(out, Finding{ID: "AIG-010", Title: "inference exposed via " + s.Type, Severity: "High",
 				Evidence: "Service " + s.Name + " (" + s.Type + ") selects this workload and no auth evidence was found",
 				Hint:     "add engine auth (--api-key), or require auth at a gateway and annotate the workload " + GatewayAuthKey + ": \"true\", or use an internal Service"}.on(w))
 		}
 	}
 	for _, ing := range ctx.Ingresses {
-		if ing.Namespace != w.Namespace || ingressHasAuth(ing.Annotations) {
+		if ing.Namespace != w.Namespace || ingressHasAuth(ing.Annotations) || kongProtects(ing.Namespace, ing.Annotations, nil, ctx.KongPlugins) {
 			continue
 		}
 		for _, name := range ing.Services {
 			for _, s := range ctx.Services {
-				if s.Namespace != w.Namespace || s.Name != name || !selectorSubset(s.Selector, w.Labels) {
+				if s.Namespace != w.Namespace || s.Name != name || !selectorSubset(s.Selector, w.Labels) ||
+					kongProtects(s.Namespace, s.Annotations, nil, ctx.KongPlugins) || meshProtects(w, s.Name, nil, ctx.MeshPolicies) {
 					continue
 				}
 				out = append(out, Finding{ID: "AIG-010", Title: "inference exposed via Ingress", Severity: "High",
@@ -59,12 +62,13 @@ func RunContextChecks(w target.WorkloadTarget, ctx ScanContext) []Finding {
 		}
 	}
 	for _, r := range ctx.HTTPRoutes {
-		if routeHasAuth(r, ctx.AuthPolicies) {
+		if routeHasAuth(r, ctx.AuthPolicies) || kongProtects(r.Namespace, r.Annotations, r.Plugins, ctx.KongPlugins) {
 			continue
 		}
 		for _, ref := range r.Services {
 			for _, s := range ctx.Services {
-				if s.Namespace != w.Namespace || ref != s.Namespace+"/"+s.Name || !selectorSubset(s.Selector, w.Labels) {
+				if s.Namespace != w.Namespace || ref != s.Namespace+"/"+s.Name || !selectorSubset(s.Selector, w.Labels) ||
+					kongProtects(s.Namespace, s.Annotations, nil, ctx.KongPlugins) || meshProtects(w, s.Name, r.Gateways, ctx.MeshPolicies) {
 					continue
 				}
 				out = append(out, Finding{ID: "AIG-013", Title: "inference exposed via HTTPRoute", Severity: "High",

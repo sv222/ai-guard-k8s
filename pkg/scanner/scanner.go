@@ -118,6 +118,8 @@ func merge(a, b target.DirScan) target.DirScan {
 	a.Ingresses = append(a.Ingresses, b.Ingresses...)
 	a.HTTPRoutes = append(a.HTTPRoutes, b.HTTPRoutes...)
 	a.AuthPolicies = append(a.AuthPolicies, b.AuthPolicies...)
+	a.MeshPolicies = append(a.MeshPolicies, b.MeshPolicies...)
+	a.KongPlugins = append(a.KongPlugins, b.KongPlugins...)
 	a.Objects += b.Objects
 	return a
 }
@@ -128,7 +130,7 @@ func Analyze(ds target.DirScan, selector string) []checks.Finding {
 }
 
 func AnalyzeWith(ds target.DirScan, extraSelector, enforceSelector string) ([]checks.Finding, []string) {
-	ctx := checks.ScanContext{NetPols: ds.NetPols, Services: ds.Services, Ingresses: ds.Ingresses, HTTPRoutes: ds.HTTPRoutes, AuthPolicies: ds.AuthPolicies}
+	ctx := checks.ScanContext{NetPols: ds.NetPols, Services: ds.Services, Ingresses: ds.Ingresses, HTTPRoutes: ds.HTTPRoutes, AuthPolicies: ds.AuthPolicies, MeshPolicies: ds.MeshPolicies, KongPlugins: ds.KongPlugins}
 	enforceLabels, _ := selector.Parse(enforceSelector)
 	var out []checks.Finding
 	var warnings []string
