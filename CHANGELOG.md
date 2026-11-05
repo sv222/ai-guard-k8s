@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- AIG-010 and AIG-013 recognise Istio auth. An `AuthorizationPolicy` that refuses anonymous requests and applies to the workload, its Service or the parent Gateway counts as auth, with a `RequestAuthentication` where the policy relies on JWT principals.
+- AIG-010 and AIG-013 recognise Kong auth. A `KongPlugin` or `KongClusterPlugin` with an authentication plugin, bound by the `konghq.com/plugins` annotation or an `ExtensionRef` filter, counts as auth on an Ingress or `HTTPRoute`.
+- Cluster scans list the Istio and Kong objects when the CRDs exist; a permission error gives a warning instead of failing the scan.
+
 ## [0.5.0] - 2026-11-03
 
 ### Added
