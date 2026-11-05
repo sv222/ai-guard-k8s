@@ -191,6 +191,28 @@ func consumeObject(out *DirScan, raw []byte, source string, line int) error {
 		out.Objects++
 		return nil
 	}
+	if g, _, _ := strings.Cut(tm.APIVersion, "/"); g == istioSecurityGroup && (tm.Kind == "AuthorizationPolicy" || tm.Kind == "RequestAuthentication") {
+		e, ok, err := meshPolicyEntry(raw, tm.Kind)
+		if err != nil {
+			return err
+		}
+		if ok {
+			out.MeshPolicies = append(out.MeshPolicies, e)
+		}
+		out.Objects++
+		return nil
+	}
+	if g, _, _ := strings.Cut(tm.APIVersion, "/"); g == kongConfigGroup && (tm.Kind == "KongPlugin" || tm.Kind == "KongClusterPlugin") {
+		e, ok, err := kongPluginEntry(raw, tm.Kind == "KongClusterPlugin")
+		if err != nil {
+			return err
+		}
+		if ok {
+			out.KongPlugins = append(out.KongPlugins, e)
+		}
+		out.Objects++
+		return nil
+	}
 	switch tm.Kind {
 	case "Deployment":
 		var o appsv1.Deployment
@@ -297,7 +319,7 @@ func serviceEntry(o corev1.Service) ServiceEntry {
 	}
 	return ServiceEntry{
 		Namespace: orDefault(o.Namespace, "default"), Name: o.Name,
-		Type: string(o.Spec.Type), Selector: o.Spec.Selector, Ports: ports,
+		Type: string(o.Spec.Type), Selector: o.Spec.Selector, Ports: ports, Annotations: o.Annotations,
 	}
 }
 

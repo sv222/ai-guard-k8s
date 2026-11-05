@@ -20,6 +20,7 @@ type HTTPRouteEntry struct {
 	Annotations     map[string]string
 	Gateways        []string
 	Services        []string
+	Plugins         []string
 	AuthFilter      bool
 }
 
@@ -100,8 +101,10 @@ func httpRouteEntry(raw []byte) (HTTPRouteEntry, error) {
 	seen := map[string]bool{}
 	for _, r := range o.Spec.Rules {
 		e.AuthFilter = e.AuthFilter || authFilter(r.Filters)
+		e.Plugins = append(e.Plugins, kongRefs(r.Filters)...)
 		for _, b := range r.BackendRefs {
 			e.AuthFilter = e.AuthFilter || authFilter(b.Filters)
+			e.Plugins = append(e.Plugins, kongRefs(b.Filters)...)
 			if k := b.key(ns); b.is("", "", "Service") && !seen[k] {
 				seen[k] = true
 				e.Services = append(e.Services, k)
@@ -109,6 +112,16 @@ func httpRouteEntry(raw []byte) (HTTPRouteEntry, error) {
 		}
 	}
 	return e, nil
+}
+
+func kongRefs(fs []gwFilter) []string {
+	var out []string
+	for _, f := range fs {
+		if f.Type == "ExtensionRef" && f.ExtensionRef != nil && f.ExtensionRef.is("", kongConfigGroup, "KongPlugin") {
+			out = append(out, f.ExtensionRef.Name)
+		}
+	}
+	return out
 }
 
 func authFilter(fs []gwFilter) bool {
@@ -161,7 +174,7 @@ func listGatewayObjects(ctx context.Context, cs kubernetes.Interface, namespace 
 	if rc == nil {
 		return nil
 	}
-	list := func(group, version, resource string, each func(json.RawMessage) error) error {
+	list := func(namespace, group, version, resource string, each func(json.RawMessage) error) error {
 		path := "/apis/" + group + "/" + version
 		if namespace != "" {
 			path += "/namespaces/" + namespace
@@ -189,7 +202,7 @@ func listGatewayObjects(ctx context.Context, cs kubernetes.Interface, namespace 
 		}
 		return nil
 	}
-	err := list(gatewayGroup, "v1", "httproutes", func(raw json.RawMessage) error {
+	err := list(namespace, gatewayGroup, "v1", "httproutes", func(raw json.RawMessage) error {
 		e, err := httpRouteEntry(raw)
 		if err == nil {
 			out.HTTPRoutes = append(out.HTTPRoutes, e)
@@ -199,10 +212,43 @@ func listGatewayObjects(ctx context.Context, cs kubernetes.Interface, namespace 
 	if err != nil {
 		return err
 	}
-	return list(envoyGatewayGroup, "v1alpha1", "securitypolicies", func(raw json.RawMessage) error {
+	err = list(namespace, envoyGatewayGroup, "v1alpha1", "securitypolicies", func(raw json.RawMessage) error {
 		e, ok, err := authPolicyEntry(raw)
 		if ok {
 			out.AuthPolicies = append(out.AuthPolicies, e)
+		}
+		return err
+	})
+	if err != nil {
+		return err
+	}
+	for _, rk := range [][2]string{{"authorizationpolicies", "AuthorizationPolicy"}, {"requestauthentications", "RequestAuthentication"}} {
+		resource, kind := rk[0], rk[1]
+		err = list(namespace, istioSecurityGroup, "v1", resource, func(raw json.RawMessage) error {
+			e, ok, err := meshPolicyEntry(raw, kind)
+			if ok {
+				out.MeshPolicies = append(out.MeshPolicies, e)
+			}
+			return err
+		})
+		if err != nil {
+			return err
+		}
+	}
+	err = list(namespace, kongConfigGroup, "v1", "kongplugins", func(raw json.RawMessage) error {
+		e, ok, err := kongPluginEntry(raw, false)
+		if ok {
+			out.KongPlugins = append(out.KongPlugins, e)
+		}
+		return err
+	})
+	if err != nil {
+		return err
+	}
+	return list("", kongConfigGroup, "v1", "kongclusterplugins", func(raw json.RawMessage) error {
+		e, ok, err := kongPluginEntry(raw, true)
+		if ok {
+			out.KongPlugins = append(out.KongPlugins, e)
 		}
 		return err
 	})
