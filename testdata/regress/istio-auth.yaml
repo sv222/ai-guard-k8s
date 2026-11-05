@@ -1,0 +1,410 @@
+# AIG-010 behind Istio: only lb-open, lb-no-jwt-rule, lb-any-source and route-open are exposed without auth (AIG-013 for route-open)
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lb-open
+  namespace: llm
+spec:
+  selector:
+    matchLabels:
+      app: lb-open
+  template:
+    metadata:
+      labels:
+        app: lb-open
+    spec:
+      containers:
+        - name: server
+          image: ollama/ollama:0.40.3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: lb-open
+  namespace: llm
+spec:
+  type: LoadBalancer
+  selector:
+    app: lb-open
+  ports:
+    - port: 11434
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lb-jwt
+  namespace: llm
+spec:
+  selector:
+    matchLabels:
+      app: lb-jwt
+  template:
+    metadata:
+      labels:
+        app: lb-jwt
+    spec:
+      containers:
+        - name: server
+          image: ollama/ollama:0.40.3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: lb-jwt
+  namespace: llm
+spec:
+  type: LoadBalancer
+  selector:
+    app: lb-jwt
+  ports:
+    - port: 11434
+---
+apiVersion: security.istio.io/v1
+kind: RequestAuthentication
+metadata:
+  name: jwt
+  namespace: llm
+spec:
+  selector:
+    matchLabels:
+      app: lb-jwt
+  jwtRules:
+    - issuer: https://issuer.example.com
+      jwksUri: https://issuer.example.com/jwks.json
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: jwt
+  namespace: llm
+spec:
+  selector:
+    matchLabels:
+      app: lb-jwt
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            requestPrincipals: ["*"]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lb-deny
+  namespace: llm
+spec:
+  selector:
+    matchLabels:
+      app: lb-deny
+  template:
+    metadata:
+      labels:
+        app: lb-deny
+    spec:
+      containers:
+        - name: server
+          image: ollama/ollama:0.40.3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: lb-deny
+  namespace: llm
+spec:
+  type: NodePort
+  selector:
+    app: lb-deny
+  ports:
+    - port: 11434
+---
+apiVersion: security.istio.io/v1
+kind: RequestAuthentication
+metadata:
+  name: deny
+  namespace: llm
+spec:
+  selector:
+    matchLabels:
+      app: lb-deny
+  jwtRules:
+    - issuer: https://issuer.example.com
+      jwksUri: https://issuer.example.com/jwks.json
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: deny
+  namespace: llm
+spec:
+  selector:
+    matchLabels:
+      app: lb-deny
+  action: DENY
+  rules:
+    - from:
+        - source:
+            notRequestPrincipals: ["*"]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lb-mtls
+  namespace: llm
+spec:
+  selector:
+    matchLabels:
+      app: lb-mtls
+  template:
+    metadata:
+      labels:
+        app: lb-mtls
+    spec:
+      containers:
+        - name: server
+          image: ollama/ollama:0.40.3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: lb-mtls
+  namespace: llm
+spec:
+  type: LoadBalancer
+  selector:
+    app: lb-mtls
+  ports:
+    - port: 11434
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: mtls
+  namespace: llm
+spec:
+  selector:
+    matchLabels:
+      app: lb-mtls
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals: ["cluster.local/ns/llm/sa/client"]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lb-no-jwt-rule
+  namespace: llm
+spec:
+  selector:
+    matchLabels:
+      app: lb-no-jwt-rule
+  template:
+    metadata:
+      labels:
+        app: lb-no-jwt-rule
+    spec:
+      containers:
+        - name: server
+          image: ollama/ollama:0.40.3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: lb-no-jwt-rule
+  namespace: llm
+spec:
+  type: LoadBalancer
+  selector:
+    app: lb-no-jwt-rule
+  ports:
+    - port: 11434
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: no-jwt-rule
+  namespace: llm
+spec:
+  selector:
+    matchLabels:
+      app: lb-no-jwt-rule
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            requestPrincipals: ["*"]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lb-any-source
+  namespace: llm
+spec:
+  selector:
+    matchLabels:
+      app: lb-any-source
+  template:
+    metadata:
+      labels:
+        app: lb-any-source
+    spec:
+      containers:
+        - name: server
+          image: ollama/ollama:0.40.3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: lb-any-source
+  namespace: llm
+spec:
+  type: LoadBalancer
+  selector:
+    app: lb-any-source
+  ports:
+    - port: 11434
+---
+apiVersion: security.istio.io/v1
+kind: RequestAuthentication
+metadata:
+  name: any
+  namespace: llm
+spec:
+  selector:
+    matchLabels:
+      app: lb-any-source
+  jwtRules:
+    - issuer: https://issuer.example.com
+      jwksUri: https://issuer.example.com/jwks.json
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: any
+  namespace: llm
+spec:
+  selector:
+    matchLabels:
+      app: lb-any-source
+  action: ALLOW
+  rules:
+    - to:
+        - operation:
+            methods: ["GET", "POST"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: route-jwt
+  namespace: llm
+spec:
+  selector:
+    app: route-jwt
+  ports:
+    - port: 11434
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: route-open
+  namespace: llm
+spec:
+  selector:
+    app: route-open
+  ports:
+    - port: 11434
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: route-jwt
+  namespace: llm
+spec:
+  selector:
+    matchLabels:
+      app: route-jwt
+  template:
+    metadata:
+      labels:
+        app: route-jwt
+    spec:
+      containers:
+        - name: server
+          image: ollama/ollama:0.40.3
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: route-open
+  namespace: llm
+spec:
+  selector:
+    matchLabels:
+      app: route-open
+  template:
+    metadata:
+      labels:
+        app: route-open
+    spec:
+      containers:
+        - name: server
+          image: ollama/ollama:0.40.3
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: route-jwt
+  namespace: llm
+spec:
+  parentRefs:
+    - name: public
+      namespace: infra
+  rules:
+    - backendRefs:
+        - name: route-jwt
+          port: 11434
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: route-open
+  namespace: llm
+spec:
+  parentRefs:
+    - name: private
+      namespace: infra
+  rules:
+    - backendRefs:
+        - name: route-open
+          port: 11434
+---
+apiVersion: security.istio.io/v1
+kind: RequestAuthentication
+metadata:
+  name: public
+  namespace: infra
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: public
+  jwtRules:
+    - issuer: https://issuer.example.com
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: public
+  namespace: infra
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: public
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            requestPrincipals: ["*"]
