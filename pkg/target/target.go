@@ -64,6 +64,7 @@ type ServiceEntry struct {
 	Namespace, Name, Type string
 	Selector              map[string]string
 	Ports                 []int32
+	Annotations           map[string]string
 }
 
 type IngressEntry struct {
@@ -79,6 +80,8 @@ type DirScan struct {
 	Ingresses    []IngressEntry
 	HTTPRoutes   []HTTPRouteEntry
 	AuthPolicies []AuthPolicyEntry
+	MeshPolicies []MeshPolicyEntry
+	KongPlugins  []KongPluginEntry
 	Warnings     []string
 	Failed       int
 	Objects      int
