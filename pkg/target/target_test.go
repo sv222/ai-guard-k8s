@@ -755,3 +755,116 @@ func TestFromClusterGatewayAPI(t *testing.T) {
 		t.Errorf("warnings = %v", ds.Warnings)
 	}
 }
+
+func TestFromBytesMeshAndKong(t *testing.T) {
+	ds := FromBytes([]byte(`apiVersion: security.istio.io/v1
+kind: RequestAuthentication
+metadata: {name: jwt, namespace: llm}
+spec:
+  selector: {matchLabels: {app: vllm}}
+  jwtRules: [{issuer: "https://i.example.com"}]
+---
+apiVersion: security.istio.io/v1
+kind: RequestAuthentication
+metadata: {name: empty, namespace: llm}
+spec: {}
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata: {name: allow, namespace: llm}
+spec:
+  targetRefs: [{group: gateway.networking.k8s.io, kind: Gateway, name: public}, {kind: Service, name: vllm}]
+  rules: [{from: [{source: {requestPrincipals: ["*"]}}]}]
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata: {name: mixed, namespace: llm}
+spec:
+  rules: [{from: [{source: {principals: ["a"]}}]}, {to: [{operation: {methods: [GET]}}]}]
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata: {name: deny-scoped, namespace: llm}
+spec:
+  action: DENY
+  rules: [{from: [{source: {notRequestPrincipals: ["*"]}}], to: [{operation: {paths: ["/admin"]}}]}]
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata: {name: ext, namespace: llm}
+spec:
+  action: CUSTOM
+  provider: {name: oauth2-proxy}
+---
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata: {name: key, namespace: llm}
+plugin: key-auth
+---
+apiVersion: configuration.konghq.com/v1
+kind: KongClusterPlugin
+metadata: {name: jwt}
+plugin: jwt
+---
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata: {name: switched-off, namespace: llm}
+plugin: key-auth
+disabled: true
+---
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata: {name: rate, namespace: llm}
+plugin: rate-limiting
+`), "x.yaml")
+	if ds.Failed != 0 || ds.Objects != 10 {
+		t.Fatalf("failed=%d objects=%d warnings=%v", ds.Failed, ds.Objects, ds.Warnings)
+	}
+	var got []string
+	for _, p := range ds.MeshPolicies {
+		got = append(got, fmt.Sprintf("%s/%s jwt=%v targets=%s", p.Kind, p.Name, p.JWT, strings.Join(p.Targets, ",")))
+	}
+	want := "RequestAuthentication/jwt jwt=false targets=;AuthorizationPolicy/allow jwt=true targets=Gateway/llm/public,Service/llm/vllm;AuthorizationPolicy/ext jwt=false targets="
+	if strings.Join(got, ";") != want {
+		t.Errorf("mesh policies = %q, want %q", strings.Join(got, ";"), want)
+	}
+	if len(ds.KongPlugins) != 2 || ds.KongPlugins[0] != (KongPluginEntry{Namespace: "llm", Name: "key"}) || ds.KongPlugins[1] != (KongPluginEntry{Name: "jwt", Cluster: true}) {
+		t.Errorf("kong plugins = %+v", ds.KongPlugins)
+	}
+}
+
+func TestFromClusterMeshAndKong(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/apis/security.istio.io/v1/namespaces/llm/requestauthentications":
+			fmt.Fprint(w, `{"items":[{"metadata":{"name":"jwt","namespace":"llm"},"spec":{"jwtRules":[{"issuer":"i"}]}}]}`)
+		case "/apis/configuration.konghq.com/v1/namespaces/llm/kongplugins":
+			fmt.Fprint(w, `{"items":[{"metadata":{"name":"key","namespace":"llm"},"plugin":"key-auth"}]}`)
+		case "/apis/configuration.konghq.com/v1/kongclusterplugins":
+			fmt.Fprint(w, `{"items":[{"metadata":{"name":"jwt"},"plugin":"jwt"}]}`)
+		default:
+			if strings.Contains(r.URL.Path, ".istio.io") || strings.Contains(r.URL.Path, ".konghq.com") || strings.HasPrefix(r.URL.Path, "/apis/gateway") {
+				w.WriteHeader(http.StatusNotFound)
+				fmt.Fprint(w, `{"kind":"Status","apiVersion":"v1","status":"Failure","reason":"NotFound","code":404}`)
+				return
+			}
+			fmt.Fprint(w, `{"items":[]}`)
+		}
+	}))
+	defer srv.Close()
+	cs, err := kubernetes.NewForConfig(&rest.Config{Host: srv.URL})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ds, err := FromClientset(context.Background(), cs, "llm")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ds.MeshPolicies) != 1 || ds.MeshPolicies[0].Kind != "RequestAuthentication" {
+		t.Errorf("mesh policies = %+v", ds.MeshPolicies)
+	}
+	if len(ds.KongPlugins) != 2 || !ds.KongPlugins[1].Cluster {
+		t.Errorf("kong plugins = %+v", ds.KongPlugins)
+	}
+}

@@ -46,7 +46,7 @@ func meshApplies(p target.MeshPolicyEntry, w target.WorkloadTarget, svc string, 
 // KongClusterPlugin is bound to a resource of namespace ns by the
 // konghq.com/plugins annotation or by an ExtensionRef filter.
 func kongProtects(ns string, ann map[string]string, refs []string, plugins []target.KongPluginEntry) bool {
-	names := refs
+	names := append([]string(nil), refs...)
 	for _, k := range kongPluginKeys {
 		for _, n := range strings.Split(ann[k], ",") {
 			names = append(names, strings.TrimSpace(n))
