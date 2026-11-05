@@ -1,0 +1,474 @@
+# AIG-010 and AIG-013 behind Kong auth plugins: ingress-open, ingress-ratelimit, ingress-anon, route-open and route-ratelimit are exposed without auth
+---
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: key-auth
+  namespace: llm
+plugin: key-auth
+---
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: apikey
+  namespace: llm
+plugin: key-auth
+---
+apiVersion: configuration.konghq.com/v1
+kind: KongClusterPlugin
+metadata:
+  name: jwt-all
+plugin: jwt
+---
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: rate
+  namespace: llm
+plugin: rate-limiting
+---
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: key-anon
+  namespace: llm
+plugin: key-auth
+config:
+  anonymous: consumer-anon
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ingress-open
+  namespace: llm
+spec:
+  selector:
+    matchLabels:
+      app: ingress-open
+  template:
+    metadata:
+      labels:
+        app: ingress-open
+    spec:
+      containers:
+        - name: server
+          image: ollama/ollama:0.40.3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ingress-open
+  namespace: llm
+spec:
+  selector:
+    app: ingress-open
+  ports:
+    - port: 11434
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ingress-open
+  namespace: llm
+spec:
+  ingressClassName: kong
+  rules:
+    - http:
+        paths:
+          - path: /ingress-open
+            pathType: Prefix
+            backend:
+              service:
+                name: ingress-open
+                port:
+                  number: 11434
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ingress-kong
+  namespace: llm
+spec:
+  selector:
+    matchLabels:
+      app: ingress-kong
+  template:
+    metadata:
+      labels:
+        app: ingress-kong
+    spec:
+      containers:
+        - name: server
+          image: ollama/ollama:0.40.3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ingress-kong
+  namespace: llm
+spec:
+  selector:
+    app: ingress-kong
+  ports:
+    - port: 11434
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ingress-kong
+  namespace: llm
+  annotations:
+    konghq.com/plugins: key-auth
+spec:
+  ingressClassName: kong
+  rules:
+    - http:
+        paths:
+          - path: /ingress-kong
+            pathType: Prefix
+            backend:
+              service:
+                name: ingress-kong
+                port:
+                  number: 11434
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ingress-ratelimit
+  namespace: llm
+spec:
+  selector:
+    matchLabels:
+      app: ingress-ratelimit
+  template:
+    metadata:
+      labels:
+        app: ingress-ratelimit
+    spec:
+      containers:
+        - name: server
+          image: ollama/ollama:0.40.3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ingress-ratelimit
+  namespace: llm
+spec:
+  selector:
+    app: ingress-ratelimit
+  ports:
+    - port: 11434
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ingress-ratelimit
+  namespace: llm
+  annotations:
+    konghq.com/plugins: rate
+spec:
+  ingressClassName: kong
+  rules:
+    - http:
+        paths:
+          - path: /ingress-ratelimit
+            pathType: Prefix
+            backend:
+              service:
+                name: ingress-ratelimit
+                port:
+                  number: 11434
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ingress-anon
+  namespace: llm
+spec:
+  selector:
+    matchLabels:
+      app: ingress-anon
+  template:
+    metadata:
+      labels:
+        app: ingress-anon
+    spec:
+      containers:
+        - name: server
+          image: ollama/ollama:0.40.3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ingress-anon
+  namespace: llm
+spec:
+  selector:
+    app: ingress-anon
+  ports:
+    - port: 11434
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ingress-anon
+  namespace: llm
+  annotations:
+    konghq.com/plugins: key-anon
+spec:
+  ingressClassName: kong
+  rules:
+    - http:
+        paths:
+          - path: /ingress-anon
+            pathType: Prefix
+            backend:
+              service:
+                name: ingress-anon
+                port:
+                  number: 11434
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ingress-svc-kong
+  namespace: llm
+spec:
+  selector:
+    matchLabels:
+      app: ingress-svc-kong
+  template:
+    metadata:
+      labels:
+        app: ingress-svc-kong
+    spec:
+      containers:
+        - name: server
+          image: ollama/ollama:0.40.3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ingress-svc-kong
+  namespace: llm
+  annotations:
+    konghq.com/plugins: jwt-all
+spec:
+  selector:
+    app: ingress-svc-kong
+  ports:
+    - port: 11434
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ingress-svc-kong
+  namespace: llm
+spec:
+  ingressClassName: kong
+  rules:
+    - http:
+        paths:
+          - path: /ingress-svc-kong
+            pathType: Prefix
+            backend:
+              service:
+                name: ingress-svc-kong
+                port:
+                  number: 11434
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: route-open
+  namespace: llm
+spec:
+  selector:
+    matchLabels:
+      app: route-open
+  template:
+    metadata:
+      labels:
+        app: route-open
+    spec:
+      containers:
+        - name: server
+          image: ollama/ollama:0.40.3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: route-open
+  namespace: llm
+spec:
+  selector:
+    app: route-open
+  ports:
+    - port: 11434
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: route-open
+  namespace: llm
+spec:
+  parentRefs:
+    - name: public
+      namespace: infra
+  rules:
+    - matches:
+        - path:
+            value: /route-open
+      backendRefs:
+        - name: route-open
+          port: 11434
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: route-kong
+  namespace: llm
+spec:
+  selector:
+    matchLabels:
+      app: route-kong
+  template:
+    metadata:
+      labels:
+        app: route-kong
+    spec:
+      containers:
+        - name: server
+          image: ollama/ollama:0.40.3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: route-kong
+  namespace: llm
+spec:
+  selector:
+    app: route-kong
+  ports:
+    - port: 11434
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: route-kong
+  namespace: llm
+  annotations:
+    konghq.com/plugins: key-auth, rate
+spec:
+  parentRefs:
+    - name: public
+      namespace: infra
+  rules:
+    - matches:
+        - path:
+            value: /route-kong
+      backendRefs:
+        - name: route-kong
+          port: 11434
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: route-ref
+  namespace: llm
+spec:
+  selector:
+    matchLabels:
+      app: route-ref
+  template:
+    metadata:
+      labels:
+        app: route-ref
+    spec:
+      containers:
+        - name: server
+          image: ollama/ollama:0.40.3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: route-ref
+  namespace: llm
+spec:
+  selector:
+    app: route-ref
+  ports:
+    - port: 11434
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: route-ref
+  namespace: llm
+spec:
+  parentRefs:
+    - name: public
+      namespace: infra
+  rules:
+    - matches:
+        - path:
+            value: /route-ref
+      filters:
+        - type: ExtensionRef
+          extensionRef:
+            group: configuration.konghq.com
+            kind: KongPlugin
+            name: apikey
+      backendRefs:
+        - name: route-ref
+          port: 11434
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: route-ratelimit
+  namespace: llm
+spec:
+  selector:
+    matchLabels:
+      app: route-ratelimit
+  template:
+    metadata:
+      labels:
+        app: route-ratelimit
+    spec:
+      containers:
+        - name: server
+          image: ollama/ollama:0.40.3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: route-ratelimit
+  namespace: llm
+spec:
+  selector:
+    app: route-ratelimit
+  ports:
+    - port: 11434
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: route-ratelimit
+  namespace: llm
+  annotations:
+    konghq.com/plugins: rate
+spec:
+  parentRefs:
+    - name: public
+      namespace: infra
+  rules:
+    - matches:
+        - path:
+            value: /route-ratelimit
+      backendRefs:
+        - name: route-ratelimit
+          port: 11434

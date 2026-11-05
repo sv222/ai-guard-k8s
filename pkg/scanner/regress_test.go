@@ -163,3 +163,52 @@ func TestRegressHelmTestHookIsReportedAsWarning(t *testing.T) {
 		t.Errorf("findings=%v warnings=%v", res.Findings, res.Warnings)
 	}
 }
+
+func exposure(t *testing.T, file, id string) map[string]int {
+	t.Helper()
+	res, err := Scan(context.Background(), Options{Path: regress + "/" + file})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]int{}
+	for _, f := range res.Findings {
+		if f.ID == id {
+			got[f.Name]++
+		}
+	}
+	return got
+}
+
+func TestRegressIstioAuth(t *testing.T) {
+	for id, want := range map[string]map[string]int{
+		"AIG-010": {"lb-open": 1, "lb-no-jwt-rule": 1, "lb-any-source": 1},
+		"AIG-013": {"route-open": 1},
+	} {
+		got := exposure(t, "istio-auth.yaml", id)
+		if len(got) != len(want) {
+			t.Errorf("%s = %v, want %v", id, got, want)
+		}
+		for name, n := range want {
+			if got[name] != n {
+				t.Errorf("%s %s = %d, want %d", id, name, got[name], n)
+			}
+		}
+	}
+}
+
+func TestRegressKongAuth(t *testing.T) {
+	for id, want := range map[string][]string{
+		"AIG-010": {"ingress-open", "ingress-ratelimit", "ingress-anon"},
+		"AIG-013": {"route-open", "route-ratelimit"},
+	} {
+		got := exposure(t, "kong-auth.yaml", id)
+		if len(got) != len(want) {
+			t.Errorf("%s = %v, want %v", id, got, want)
+		}
+		for _, name := range want {
+			if got[name] != 1 {
+				t.Errorf("%s %s = %d, want 1", id, name, got[name])
+			}
+		}
+	}
+}
