@@ -10,7 +10,10 @@ updates:
           - "k8s.io/*"
           - "sigs.k8s.io/*"
     ignore:
-      - dependency-name: "k8s.io/api"
+      # kustomize 0.21.3 needs kube-openapi on structured-merge-diff v7,
+      # which k8s.io/apimachinery 0.37.x does not support yet
+      - dependency-name: "sigs.k8s.io/kustomize/*"
+        versions: ["0.21.3"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
