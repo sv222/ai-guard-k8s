@@ -101,7 +101,7 @@ A workload counts as AI inference if its name or an image contains `vllm`, `olla
 | ID | Risk | Severity | How it is detected | Fix | Maps to |
 |---|---|---|---|---|---|
 | AIG-001 | No auth on the engine | High (vLLM), Medium (others) | No `--api-key` arg, no env var the engine reads (vLLM: `VLLM_API_KEY`; Text Embeddings Inference: `API_KEY`; llama.cpp: `LLAMA_API_KEY`; LocalAI: `LOCALAI_API_KEY` or `API_KEY`; other engines: none), and no `envFrom` Secret named like api-key, api-token, auth or bearer (names with hf, aws, s3, registry or tls do not count) | Set an API key, or annotate `ai.infra.guard/gateway-auth: "true"` if a gateway authenticates | - |
-| AIG-002 | Debug or insecure endpoint | Medium | `--debug`, `--allow-http`, or `OLLAMA_DEBUG` set to `true` or `1` | Remove it | - |
+| AIG-002 | Debug or insecure endpoint | Medium | `--debug`, `--allow-http`, `OLLAMA_DEBUG` set to `true` or `1`, or `OLLAMA_ORIGINS` containing `*` (any web page can call the engine from a visitor's browser) | Remove it; list explicit origins | - |
 | AIG-003 | Host namespaces | High | `hostNetwork`, `hostPID` or `hostIPC` is true | Set them to false | PSS Baseline: Host Namespaces |
 | AIG-004 | `hostPath` volume | High | Any `hostPath` volume | Use a PVC or `emptyDir` | PSS Baseline: HostPath Volumes |
 | AIG-005 | Root, privileged, privilege escalation | High | Effective `runAsUser: 0`, `runAsNonRoot` not `true`, `privileged: true`, `allowPrivilegeEscalation` unset or true | Set `runAsNonRoot: true`, `privileged: false`, `allowPrivilegeEscalation: false` | PSS Restricted: Running as Non-root, Running as Non-root user, Privilege Escalation. Baseline: Privileged Containers |
