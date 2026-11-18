@@ -191,7 +191,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
         with:
-          go-version: "1.27.3"
+          go-version: "1.27.4"
       - run: go install github.com/sv222/ai-guard-k8s@v0.5.0
       - run: ai-guard-k8s scan --path manifests/ --fail-on high
 ```
@@ -222,7 +222,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
         with:
-          go-version: "1.27.3"
+          go-version: "1.27.4"
       - run: go install github.com/sv222/ai-guard-k8s@v0.5.0
       - run: ai-guard-k8s scan --path manifests/ --sarif > ai-guard.sarif
         continue-on-error: true
