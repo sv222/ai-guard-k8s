@@ -35,7 +35,7 @@ var dangerousCaps = map[string]bool{
 	"BPF": true, "PERFMON": true, "SYS_RESOURCE": true, "SYSLOG": true,
 }
 
-var unsafeModelExts = []string{".bin", ".pt", ".pth", ".pkl", ".pickle", ".ckpt"}
+var unsafeModelExts = []string{".bin", ".pt", ".pth", ".pkl", ".pickle", ".ckpt", ".h5", ".keras"}
 
 func RunPodSpecChecks(w target.WorkloadTarget) []Finding {
 	var out []Finding

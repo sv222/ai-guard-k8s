@@ -291,6 +291,10 @@ func TestPodSpecChecks(t *testing.T) {
 		{"008 pth url with query", container(func(c *corev1.Container) { c.Args = append(c.Args, "https://h/x/model.pth?download=1") }), "AIG-008", 1},
 		{"008 ckpt", container(func(c *corev1.Container) { c.Args = append(c.Args, "--ckpt=/m/a.ckpt") }), "AIG-008", 1},
 		{"008 pickle", container(func(c *corev1.Container) { c.Args = append(c.Args, "/m/a.pickle") }), "AIG-008", 1},
+		{"008 h5 keras hdf5", container(func(c *corev1.Container) { c.Args = append(c.Args, "--model=/m/bert.h5") }), "AIG-008", 1},
+		{"008 keras bundle", container(func(c *corev1.Container) { c.Args = append(c.Args, "--model", "s3://b/model.keras") }), "AIG-008", 1},
+		{"008 h5 uppercase with query", container(func(c *corev1.Container) { c.Args = append(c.Args, "https://h/x/m.H5?dl=1") }), "AIG-008", 1},
+		{"008 h5 prefix is not the extension", container(func(c *corev1.Container) { c.Args = append(c.Args, "--file=/m/h5tools.log") }), "AIG-008", 0},
 		{"008 pkl in env", container(func(c *corev1.Container) {
 			c.Env = []corev1.EnvVar{{Name: "MODEL_PATH", Value: "/m/a.pkl"}}
 		}), "AIG-008", 1},

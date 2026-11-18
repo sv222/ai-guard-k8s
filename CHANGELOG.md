@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- AIG-008 also reports model references ending in `.h5` and `.keras`. Loading a Keras HDF5 archive can execute code from Lambda layers, so the formats are as unsafe as the pickle ones already listed. `.safetensors` stays clean.
 - AIG-002 also reports an `OLLAMA_ORIGINS` that contains `*`. Such a list lets any web page call the Ollama API from a visitor's browser. Lists with explicit origins are not reported. `OLLAMA_HOST=0.0.0.0` stays unreported on purpose: inside a pod the engine must listen on all interfaces for its Service to reach it.
 - AIG-010 and AIG-013 recognise Istio auth. An `AuthorizationPolicy` that refuses anonymous requests and applies to the workload, its Service or the parent Gateway counts as auth, with a `RequestAuthentication` where the policy relies on JWT principals.
 - AIG-010 and AIG-013 recognise Kong auth. A `KongPlugin` or `KongClusterPlugin` with an authentication plugin, bound by the `konghq.com/plugins` annotation or an `ExtensionRef` filter, counts as auth on an Ingress or `HTTPRoute`.
