@@ -212,3 +212,10 @@ func TestRegressKongAuth(t *testing.T) {
 		}
 	}
 }
+
+func TestRegressOllamaOrigins(t *testing.T) {
+	got := exposure(t, "ollama-origins.yaml", "AIG-002")
+	if len(got) != 1 || got["origins-wild"] != 1 {
+		t.Errorf("AIG-002 = %v, want origins-wild: 1", got)
+	}
+}

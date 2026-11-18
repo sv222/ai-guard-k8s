@@ -1,0 +1,43 @@
+# AIG-002: only origins-wild sets OLLAMA_ORIGINS="*", which lets any web page call the engine
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: origins-wild
+  namespace: llm
+spec:
+  selector:
+    matchLabels:
+      app: origins-wild
+  template:
+    metadata:
+      labels:
+        app: origins-wild
+    spec:
+      containers:
+        - name: server
+          image: ollama/ollama:0.40.3
+          env:
+            - name: OLLAMA_ORIGINS
+              value: "*"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: origins-narrow
+  namespace: llm
+spec:
+  selector:
+    matchLabels:
+      app: origins-narrow
+  template:
+    metadata:
+      labels:
+        app: origins-narrow
+    spec:
+      containers:
+        - name: server
+          image: ollama/ollama:0.40.3
+          env:
+            - name: OLLAMA_ORIGINS
+              value: "http://localhost:3000,chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai"
