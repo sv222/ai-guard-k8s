@@ -179,6 +179,10 @@ func TestPodSpecChecks(t *testing.T) {
 		{"002 ollama debug", ollama(corev1.EnvVar{Name: "OLLAMA_DEBUG", Value: "true"}), "AIG-002", 1},
 		{"002 ollama debug 1", ollama(corev1.EnvVar{Name: "OLLAMA_DEBUG", Value: "1"}), "AIG-002", 1},
 		{"002 ollama debug off", ollama(corev1.EnvVar{Name: "OLLAMA_DEBUG", Value: "false"}), "AIG-002", 0},
+		{"002 ollama host all interfaces is normal in a pod", ollama(corev1.EnvVar{Name: "OLLAMA_HOST", Value: "0.0.0.0:11434"}), "AIG-002", 0},
+		{"002 ollama origins wildcard", ollama(corev1.EnvVar{Name: "OLLAMA_ORIGINS", Value: "*"}), "AIG-002", 1},
+		{"002 ollama origins wildcard in list", ollama(corev1.EnvVar{Name: "OLLAMA_ORIGINS", Value: "http://localhost:3000, *"}), "AIG-002", 1},
+		{"002 ollama origins listed", ollama(corev1.EnvVar{Name: "OLLAMA_ORIGINS", Value: "http://localhost:3000,chrome-extension://*"}), "AIG-002", 0},
 		{"002 clean", func(*target.WorkloadTarget) {}, "AIG-002", 0},
 
 		{"003 hostNetwork", pod(func(p *corev1.PodSpec) { p.HostNetwork = true }), "AIG-003", 1},

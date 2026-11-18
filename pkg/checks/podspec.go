@@ -88,8 +88,26 @@ func aig002(w target.WorkloadTarget) []Finding {
 				Hint:     "unset OLLAMA_DEBUG in production",
 			}.on(w))
 		}
+		if originsWildcard(envValue(c, "OLLAMA_ORIGINS")) {
+			out = append(out, Finding{
+				ID: "AIG-002", Title: "OLLAMA_ORIGINS allows all origins", Severity: "Medium",
+				Evidence: fmt.Sprintf("container %s: env OLLAMA_ORIGINS=%s accepts cross-origin requests from any web page", c.Name, envValue(c, "OLLAMA_ORIGINS")),
+				Hint:     "list the origins that need access instead of *; any web page in a visitor's browser can then call the engine",
+			}.on(w))
+		}
 	}
 	return out
+}
+
+// originsWildcard reports whether an OLLAMA_ORIGINS list contains the "*"
+// entry that allows requests from every origin.
+func originsWildcard(v string) bool {
+	for _, o := range strings.Split(v, ",") {
+		if strings.TrimSpace(o) == "*" {
+			return true
+		}
+	}
+	return false
 }
 
 func aig003(w target.WorkloadTarget) []Finding {
