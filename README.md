@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="docs/logo.png" alt="ai-guard-k8s logo" width="200">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/logo-dark.png">
+    <img src="docs/logo.png" alt="ai-guard-k8s logo" width="200">
+  </picture>
 </p>
 
 # ai-guard-k8s: find and fix unsafe settings in Kubernetes AI inference workloads
