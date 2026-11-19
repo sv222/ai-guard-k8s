@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/logo.png" alt="ai-guard-k8s logo" width="200">
+</p>
+
 # ai-guard-k8s: find and fix unsafe settings in Kubernetes AI inference workloads
 
 Scan manifests or a live cluster for unsafe settings in vLLM, Ollama, Triton, TGI and Ray Serve workloads. Then generate Kyverno and Cilium policies to harden them.
