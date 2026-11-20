@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- The project is archived and merged into [kshield](https://github.com/sv222/kshield). The README explains why, lists the rule ID mapping and the parts that did not move yet.
+
 ### Added
 
 - AIG-008 also reports model references ending in `.h5` and `.keras`. Loading a Keras HDF5 archive can execute code from Lambda layers, so the formats are as unsafe as the pickle ones already listed. `.safetensors` stays clean.

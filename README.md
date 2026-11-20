@@ -1,3 +1,40 @@
+> [!IMPORTANT]
+> **This project is archived. It was merged into [kshield](https://github.com/sv222/kshield).**
+>
+> Why: ai-guard-k8s and kshield did the same job: scan Kubernetes AI inference workloads and generate Kyverno and Cilium policies. Two tools split the work and the users. kshield was the larger tool (39 checks, HTML, PDF and SARIF reports, signed evidence bundles, a remediation bundle with patches, Tetragon policies, a read-only cluster scan), so the ai-guard engine detection and rules were ported into it.
+>
+> What moved: detection of vLLM, Ollama, Triton, TGI, TEI, LocalAI, SGLang, llama.cpp, lmdeploy, TensorRT-LLM and Ray Serve, the rules below, the regression and real-chart test cases, and the hardened examples (`docs/hardened-engines.md` in kshield). All 22 findings of this repo's offending sample have a matching kshield finding.
+>
+> What did not move yet: Istio, Kong and Gateway API (`HTTPRoute`, Envoy `SecurityPolicy`) auth evidence, AIG-013, CPU and memory requests from AIG-007, `--helm` and `--kustomize` input. `enforce --apply` is dropped: kshield writes a bundle you review and apply yourself.
+>
+> This repo gets no more changes. Existing releases and `go install` pins keep working.
+>
+> | ai-guard | kshield |
+> |---|---|
+> | AIG-001 | KS-AI-001, KS-AI-010 |
+> | AIG-002 | KS-AI-011 |
+> | AIG-003 | KS-WL-004 |
+> | AIG-004 | KS-WL-005, KS-WL-014, KS-WL-015 |
+> | AIG-005 | KS-WL-001, KS-WL-002 |
+> | AIG-006 | KS-WL-009 |
+> | AIG-007 | KS-WL-013 (memory limit only) |
+> | AIG-008 | KS-AI-002, KS-AI-003, KS-AI-012 |
+> | AIG-009 | KS-NET-004 |
+> | AIG-010 | KS-AI-004, KS-AI-007 (Ollama) |
+> | AIG-011 | KS-WL-016 |
+> | AIG-012 | KS-WL-003 |
+> | AIG-013 | not ported yet |
+>
+> | ai-guard | kshield |
+> |---|---|
+> | `ai-guard scan --path dir --fail-on high` | `kshield scan manifest -f dir --fail-on fail` |
+> | `ai-guard scan -n ns` | `kshield scan cluster -n ns` |
+> | label `ai.infra.guard/enabled` | label `kshield.io/ai: "true"` |
+> | annotation `ai.infra.guard/gateway-auth` | annotation `kshield.io/gateway-auth: "true"` |
+> | `ai-guard enforce` | `kshield remediate` |
+>
+> Rule IDs and the SARIF `ruleId` change, so code scanning alerts from ai-guard close and new kshield alerts open.
+
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/logo-dark.png">
