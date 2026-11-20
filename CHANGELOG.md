@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
-- The project is archived and merged into [kshield](https://github.com/sv222/kshield). The README explains why, lists the rule ID mapping and the parts that did not move yet.
+- The project is archived and merged into [kshield](https://github.com/sv222/kshield). The README explains why, lists the rule ID mapping, the flag mapping and the parts that did not move.
 
 ### Added
 

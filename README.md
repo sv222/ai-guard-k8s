@@ -1,11 +1,13 @@
 > [!IMPORTANT]
 > **This project is archived. It was merged into [kshield](https://github.com/sv222/kshield).**
 >
-> Why: ai-guard-k8s and kshield did the same job: scan Kubernetes AI inference workloads and generate Kyverno and Cilium policies. Two tools split the work and the users. kshield was the larger tool (39 checks, HTML, PDF and SARIF reports, signed evidence bundles, a remediation bundle with patches, Tetragon policies, a read-only cluster scan), so the ai-guard engine detection and rules were ported into it.
+> Why: ai-guard-k8s and kshield did the same job: scan Kubernetes AI inference workloads and generate Kyverno and Cilium policies. Two tools split the work and the users. kshield was the larger tool (40 checks, HTML, PDF and SARIF reports, signed evidence bundles, a remediation bundle with patches, Tetragon policies, a read-only cluster scan), so the ai-guard engine detection and rules were ported into it.
 >
 > What moved: detection of vLLM, Ollama, Triton, TGI, TEI, LocalAI, SGLang, llama.cpp, lmdeploy, TensorRT-LLM and Ray Serve, the rules below, the regression and real-chart test cases, and the hardened examples (`docs/hardened-engines.md` in kshield). All 22 findings of this repo's offending sample have a matching kshield finding.
 >
-> What did not move yet: Istio, Kong and Gateway API (`HTTPRoute`, Envoy `SecurityPolicy`) auth evidence, AIG-013, CPU and memory requests from AIG-007, `--helm` and `--kustomize` input. `enforce --apply` is dropped: kshield writes a bundle you review and apply yourself.
+> Istio, Kong and Envoy Gateway auth evidence moved too, and HTTPRoute exposure is the kshield check KS-AI-013. `ai-guard enforce --apply` is `kshield remediate --apply`: off by default, it shows the cluster context, asks for confirmation and does a dry run of every object first.
+>
+> What did not move: CPU and memory requests from AIG-007, `--helm` and `--kustomize` input. Pipe `helm template` or `kustomize build` into `kshield scan manifest -f -`.
 >
 > This repo gets no more changes. Existing releases and `go install` pins keep working.
 >
@@ -23,7 +25,7 @@
 > | AIG-010 | KS-AI-004, KS-AI-007 (Ollama) |
 > | AIG-011 | KS-WL-016 |
 > | AIG-012 | KS-WL-003 |
-> | AIG-013 | not ported yet |
+> | AIG-013 | KS-AI-013 |
 >
 > | ai-guard | kshield |
 > |---|---|
@@ -32,6 +34,7 @@
 > | label `ai.infra.guard/enabled` | label `kshield.io/ai: "true"` |
 > | annotation `ai.infra.guard/gateway-auth` | annotation `kshield.io/gateway-auth: "true"` |
 > | `ai-guard enforce` | `kshield remediate` |
+> | `ai-guard enforce --apply` | `kshield remediate --apply` |
 >
 > Rule IDs and the SARIF `ruleId` change, so code scanning alerts from ai-guard close and new kshield alerts open.
 
